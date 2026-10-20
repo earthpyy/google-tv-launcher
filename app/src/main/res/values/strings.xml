@@ -12,6 +12,12 @@
     <string name="state_off">Off</string>
     <string name="glance_aqi">AQI</string>
     <string name="glance_inside">Inside</string>
+    <string name="football_live">LIVE</string>
+    <string name="football_full_time">FT</string>
+    <string name="football_vs">vs</string>
+    <string name="football_today">Today</string>
+    <string name="football_tomorrow">Tomorrow</string>
+    <string name="football_in_minutes">in %1$d min</string>
     <string name="panel_power">Power</string>
     <string name="panel_temperature">Temperature</string>
     <string name="panel_fan">Fan</string>

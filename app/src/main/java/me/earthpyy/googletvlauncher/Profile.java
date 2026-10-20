@@ -13,17 +13,21 @@ final class Profile {
     /** SHA-256 of the trimmed, lowercased email, as Gravatar expects. */
     final String hash;
     final String wallpaper;
+    /** football-data.org team IDs; empty hides the football line. */
+    final List<String> footballTeamIds;
 
-    private Profile(String email, String wallpaper) {
+    private Profile(String email, String wallpaper, String footballTeamIds) {
         this.email = email.trim();
         this.hash = sha256(this.email.toLowerCase(Locale.ROOT));
         this.wallpaper = wallpaper.trim();
+        this.footballTeamIds = Config.list(footballTeamIds);
     }
 
     static List<Profile> all() {
         List<Profile> profiles = new ArrayList<>();
         for (int i = 0; i < BuildConfig.PROFILE_EMAILS.length; i++) {
-            profiles.add(new Profile(BuildConfig.PROFILE_EMAILS[i], BuildConfig.PROFILE_WALLPAPER_DRAWABLES[i]));
+            profiles.add(new Profile(BuildConfig.PROFILE_EMAILS[i], BuildConfig.PROFILE_WALLPAPER_DRAWABLES[i],
+                    BuildConfig.PROFILE_FOOTBALL_TEAM_IDS[i]));
         }
         return profiles;
     }

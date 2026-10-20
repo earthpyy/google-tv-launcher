@@ -75,6 +75,17 @@
                 android:textColor="#B3FFFFFF"
                 android:textSize="20sp"
                 android:visibility="gone" />
+
+            <!-- Favourite teams: next kick-off, live score or latest result -->
+            <TextView
+                android:id="@+id/football"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:singleLine="true"
+                android:textColor="#B3FFFFFF"
+                android:textSize="20sp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <LinearLayout

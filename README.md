@@ -71,6 +71,7 @@ Per profile (`PROFILE_n_…`):
 | Setting | What it does |
 |---|---|
 | `PROFILE_n_WALLPAPER_DRAWABLE` | Put an image in `app/src/main/res/drawable/` (e.g. `wallpaper.jpg`) and set this to its name without the extension (`wallpaper`). Empty means pitch black. A dark gradient keeps the text readable. |
+| `PROFILE_n_FOOTBALL_TEAM_IDS` | Favourite teams for the [football line](#football), comma-separated (e.g. `57,64`). Empty means no football line. |
 
 With two or more profiles:
 
@@ -104,6 +105,20 @@ Set `HASS_URL` and a long-lived access token in `HASS_TOKEN` (HA profile → Sec
 - **AC button** (`HASS_CLIMATE`): OK opens a panel. Up/Down pick Power, Temperature or Fan. OK toggles power. Left/Right change the temperature (`HASS_CLIMATE_MIN_TEMP` to `HASS_CLIMATE_MAX_TEMP`) and fan speed (`HASS_CLIMATE_FAN_MODES`, e.g. `auto,low,mid:Medium,high`). Changes are sent 500 ms after your last press. Back closes it.
 
 Leave any entity empty to hide that part; an unavailable entity shows `–`. States are fetched when the home screen appears and after each action, never in the background. If Home Assistant can't be reached, the last values stay on screen, dimmed.
+
+### Football
+
+A line under the glance line follows your favourite teams, using [football-data.org](https://www.football-data.org). Get a free API key at [football-data.org/client/register](https://www.football-data.org/client/register) and put it in `FOOTBALL_DATA_TOKEN`, then list each profile's teams in `PROFILE_n_FOOTBALL_TEAM_IDS`. Find a team's ID on the [coverage page](https://www.football-data.org/coverage). The free plan covers the Premier League, Championship, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie, Primeira Liga, Brasileirão, Champions League, World Cup and Euros.
+
+With several teams, the line shows just one match, the one that matters most:
+
+| When | The line |
+|---|---|
+| A match is on | `LIVE · Arsenal 1–0 Chelsea` |
+| Up to about 12 hours after the final whistle | `FT · Arsenal 2–1 Chelsea` |
+| Otherwise, the next kick-off in the coming 30 days | `Sat 22:30 · Arsenal vs Chelsea · Premier League` (or `Today`, `Tomorrow`, `2 Nov`, and `in 45 min` in the last hour) |
+
+Matches are fetched when the home screen appears and at kick-off, then every minute while a match is live and the home screen is in front; never in the background. That's one request per team, well within the free plan's 10 a minute. Free plan live scores run a few minutes behind. With nothing to show, or a wrong ID or key, the line is hidden; if football-data.org can't be reached, the last match stays on screen, dimmed.
 
 ## Getting around
 

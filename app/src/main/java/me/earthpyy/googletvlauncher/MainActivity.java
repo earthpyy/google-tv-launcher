@@ -69,6 +69,8 @@ public class MainActivity extends Activity {
     private final ExecutorService loader = Executors.newSingleThreadExecutor();
     // Gravatar gets its own thread, so a slow network never holds up the app list or Home Assistant
     private final ExecutorService profileLoader = Executors.newSingleThreadExecutor();
+    // And football-data.org gets its own for the same reason
+    private final ExecutorService footballLoader = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final List<AppEntry> dockApps = new ArrayList<>();
     private final List<AppEntry> gridApps = new ArrayList<>();
@@ -96,6 +98,7 @@ public class MainActivity extends Activity {
     private View settingsPill;
     private final List<View> pills = new ArrayList<>();
     private HomeControls home;
+    private FootballLine football;
     private LinearLayout dockRow;
     private RecyclerView grid;
     private TileAdapter gridAdapter;
@@ -151,6 +154,7 @@ public class MainActivity extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             updateClock();
+            football.tick();
         }
     };
 
@@ -225,6 +229,8 @@ public class MainActivity extends Activity {
 
         // Home Assistant pills come first, when configured
         home = new HomeControls(this, loader, mainHandler, this::highlight);
+        football = new FootballLine(this, footballLoader, mainHandler);
+        football.setTeams(profiles.get(activeProfile).footballTeamIds);
         menu = new TileMenu(this, this::highlight, this::refocus);
         if (home.hasLight()) {
             pills.add(findViewById(R.id.pill_light));
@@ -288,6 +294,7 @@ public class MainActivity extends Activity {
         super.onResume();
         resumed = true;
         home.refresh();
+        football.onResume();
         if (wokeAt != 0 && SystemClock.elapsedRealtime() - wokeAt < WAKE_RESUME_WINDOW_MS) {
             showPicker();
         }
@@ -299,6 +306,7 @@ public class MainActivity extends Activity {
     protected void onPause() {
         resumed = false;
         home.onPause();
+        football.onPause();
         dismissEditing();
         saveFocusState();
         super.onPause();
@@ -310,6 +318,7 @@ public class MainActivity extends Activity {
         unregisterReceiver(screenReceiver);
         loader.shutdownNow();
         profileLoader.shutdownNow();
+        footballLoader.shutdownNow();
         super.onDestroy();
     }
 
@@ -871,6 +880,7 @@ public class MainActivity extends Activity {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(PREF_PROFILE, index).apply();
         setupWallpaper();
         showActiveProfile();
+        football.setTeams(profiles.get(index).footballTeamIds);
         resetFocus = true;
         if (loaded) {
             showApps(allApps);
