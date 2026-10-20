@@ -45,6 +45,8 @@ final class FootballLine {
     private static final int LOOKAHEAD_DAYS = 30;
     private static final float DIMMED = 0.5f;
     private static final String DASH = "–";
+    // As wide as the glance line's
+    private static final String SEPARATOR = "   ·   ";
 
     /** One match, as much of it as the line needs. */
     private static final class Match {
@@ -263,16 +265,16 @@ final class FootballLine {
         icon(text);
         if (match.isLive() || match.isFinished()) {
             text.append(activity.getString(match.isLive() ? R.string.football_live : R.string.football_full_time))
-                    .append(" · ")
+                    .append(SEPARATOR)
                     .append(match.home).append(' ').append(match.homeScore)
                     .append("–")
                     .append(match.awayScore).append(' ').append(match.away);
         } else {
             text.append(when(match.kickoff, System.currentTimeMillis()))
-                    .append(" · ")
+                    .append(SEPARATOR)
                     .append(match.home).append(' ').append(activity.getString(R.string.football_vs)).append(' ').append(match.away);
             if (!match.competition.isEmpty()) {
-                text.append(" · ").append(match.competition);
+                text.append(SEPARATOR).append(match.competition);
             }
         }
         line.setText(text);
