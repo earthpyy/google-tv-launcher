@@ -2,10 +2,13 @@ package me.earthpyy.googletvlauncher;
 
 import android.app.Activity;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.style.DynamicDrawableSpan;
 import android.text.style.ForegroundColorSpan;
+import android.text.style.ImageSpan;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.TextView;
@@ -17,7 +20,9 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,6 +56,8 @@ final class HomeControls {
     private final String insideHumidityId = BuildConfig.HASS_INSIDE_HUMIDITY;
     private final String lightId = BuildConfig.HASS_LIGHT;
     private final String climateId = BuildConfig.HASS_CLIMATE;
+    // Fan modes offered in the panel, in order, with their labels; empty = whatever the entity reports
+    private final Map<String, String> fanModeLabels = fanModeLabels(BuildConfig.HASS_CLIMATE_FAN_MODES);
 
     private final TextView glance;
     private final TextView lightPill;
@@ -460,8 +467,9 @@ final class HomeControls {
             JSONObject weather = available(weatherId);
             JSONObject attributes = weather == null ? null : weather.optJSONObject("attributes");
             String temp = attributes == null ? null : degrees(attributes.opt("temperature"));
-            text.append(temp == null ? DASH : temp).append(' ')
-                    .append(weather == null ? DASH : condition(weather.optString("state")));
+            String condition = weather == null ? "" : weather.optString("state");
+            icon(text, conditionIcon(condition));
+            text.append(temp == null ? DASH : temp).append(' ').append(condition.isEmpty() ? DASH : conditionLabel(condition));
         }
         if (!aqiId.isEmpty()) {
             gap(text, "  ");
@@ -476,21 +484,38 @@ final class HomeControls {
             }
         }
         if (!insideTemperatureId.isEmpty() || !insideHumidityId.isEmpty()) {
-            gap(text, "      ");
-            text.append(activity.getString(R.string.glance_inside));
+            gap(text, "   ·   ");
+            icon(text, R.drawable.ic_home);
             if (!insideTemperatureId.isEmpty()) {
                 JSONObject inside = available(insideTemperatureId);
                 String temp = inside == null ? null : degrees(inside.optString("state"));
-                text.append(' ').append(temp == null ? DASH : temp);
+                text.append(temp == null ? DASH : temp);
             }
             if (!insideHumidityId.isEmpty()) {
                 JSONObject humidity = available(insideHumidityId);
                 String value = humidity == null ? null : number(humidity.optString("state"));
-                text.append("  ").append(value == null ? DASH : value + "%");
+                gap(text, "  ");
+                icon(text, R.drawable.ic_humidity);
+                text.append(value == null ? DASH : value + "%");
             }
         }
         glance.setText(text);
         glance.setAlpha(stale ? DIMMED : 1f);
+    }
+
+    /** Appends an icon drawn in the glance text colour, sized to the text, followed by a space. */
+    private void icon(SpannableStringBuilder text, int drawable) {
+        if (drawable == 0) {
+            return;
+        }
+        Drawable icon = activity.getDrawable(drawable).mutate();
+        int size = Math.round(glance.getTextSize() * 1.1f);
+        icon.setBounds(0, 0, size, size);
+        icon.setTint(glance.getCurrentTextColor());
+        int start = text.length();
+        text.append('\uFFFC');
+        text.setSpan(new ImageSpan(icon, DynamicDrawableSpan.ALIGN_CENTER), start, start + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.append(' ');
     }
 
     private static void gap(SpannableStringBuilder text, String gap) {
@@ -546,6 +571,9 @@ final class HomeControls {
     }
 
     private List<String> fanModes() {
+        if (!fanModeLabels.isEmpty()) {
+            return new ArrayList<>(fanModeLabels.keySet());
+        }
         List<String> modes = new ArrayList<>();
         JSONObject attributes = climateAttributes();
         JSONArray list = attributes == null ? null : attributes.optJSONArray("fan_modes");
@@ -560,17 +588,62 @@ final class HomeControls {
         return state == null ? null : state.optJSONObject("attributes");
     }
 
-    private static String fanLabel(String mode) {
+    private String fanLabel(String mode) {
         if (mode == null || mode.isEmpty()) {
             return DASH;
         }
-        if (mode.equals("mid")) {
-            return "Medium";
-        }
-        return mode.substring(0, 1).toUpperCase(Locale.US) + mode.substring(1);
+        String label = fanModeLabels.get(mode);
+        return label != null ? label : mode.substring(0, 1).toUpperCase(Locale.US) + mode.substring(1);
     }
 
-    private static String condition(String state) {
+    /** Parses "auto,low,mid:Medium,high": each mode, optionally with a label after a colon. */
+    private static Map<String, String> fanModeLabels(String config) {
+        Map<String, String> labels = new LinkedHashMap<>();
+        for (String item : Config.list(config)) {
+            int colon = item.indexOf(':');
+            String mode = colon < 0 ? item : item.substring(0, colon).trim();
+            String label = colon < 0 ? "" : item.substring(colon + 1).trim();
+            labels.put(mode, label.isEmpty() ? mode.substring(0, 1).toUpperCase(Locale.US) + mode.substring(1) : label);
+        }
+        return labels;
+    }
+
+    private static int conditionIcon(String state) {
+        switch (state) {
+            case "sunny":
+                return R.drawable.ic_weather_sunny;
+            case "clear-night":
+                return R.drawable.ic_weather_clear_night;
+            case "partlycloudy":
+                int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+                return hour >= 6 && hour < 18 ? R.drawable.ic_weather_partly_cloudy_day : R.drawable.ic_weather_partly_cloudy_night;
+            case "cloudy":
+                return R.drawable.ic_weather_cloudy;
+            case "rainy":
+                return R.drawable.ic_weather_rainy;
+            case "pouring":
+                return R.drawable.ic_weather_pouring;
+            case "lightning":
+            case "lightning-rainy":
+                return R.drawable.ic_weather_lightning;
+            case "snowy":
+                return R.drawable.ic_weather_snowy;
+            case "snowy-rainy":
+            case "hail":
+                return R.drawable.ic_weather_mix;
+            case "fog":
+                return R.drawable.ic_weather_fog;
+            case "windy":
+            case "windy-variant":
+                return R.drawable.ic_weather_windy;
+            case "exceptional":
+                return R.drawable.ic_weather_exceptional;
+            default:
+                return 0;
+        }
+    }
+
+    private static String conditionLabel(String state) {
         switch (state) {
             case "clear-night":
                 return "Clear";

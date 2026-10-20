@@ -76,9 +76,9 @@ All in `.env` (see [`.env.example`](.env.example)), then `./scripts/build-instal
 
 Set `HASS_URL` and a long-lived access token in `HASS_TOKEN` (HA profile → Security). Without both, nothing below is shown.
 
-- **Glance line** under the date: `HASS_WEATHER` (temperature and condition), `HASS_AQI` (amber above 100, red above 150), and `HASS_INSIDE_TEMPERATURE` / `HASS_INSIDE_HUMIDITY`.
+- **Glance line** under the date: outside, `HASS_WEATHER` (condition icon, temperature and condition) and `HASS_AQI` (amber above 100, red above 150); then inside, `HASS_INSIDE_TEMPERATURE` and `HASS_INSIDE_HUMIDITY`. Icons are [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0).
 - **Lights pill**: `HASS_LIGHT`, any light or switch. OK turns it on or off.
-- **AC pill**: `HASS_CLIMATE`. OK opens a panel: Up/Down pick Power, Temperature or Fan; OK toggles power; Left/Right change temperature (`HASS_CLIMATE_MIN_TEMP` to `HASS_CLIMATE_MAX_TEMP`) and fan speed. Changes are sent 500 ms after the last press. Back closes it.
+- **AC pill**: `HASS_CLIMATE`. OK opens a panel: Up/Down pick Power, Temperature or Fan; OK toggles power; Left/Right change temperature (`HASS_CLIMATE_MIN_TEMP` to `HASS_CLIMATE_MAX_TEMP`) and fan speed (`HASS_CLIMATE_FAN_MODES`, e.g. `auto,low,mid:Medium,high`). Changes are sent 500 ms after the last press. Back closes it.
 
 Leave any entity empty to hide that part; an unavailable entity shows `–`. States are fetched when the home screen appears and after each action, never in the background. If Home Assistant can't be reached, the last values stay on screen, dimmed.
 

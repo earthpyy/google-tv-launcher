@@ -28,6 +28,7 @@ android {
         buildConfigField 'String', 'HASS_INSIDE_HUMIDITY', quoted(env('HASS_INSIDE_HUMIDITY'))
         buildConfigField 'String', 'HASS_LIGHT', quoted(env('HASS_LIGHT'))
         buildConfigField 'String', 'HASS_CLIMATE', quoted(env('HASS_CLIMATE'))
+        buildConfigField 'String', 'HASS_CLIMATE_FAN_MODES', quoted(env('HASS_CLIMATE_FAN_MODES'))
         buildConfigField 'int', 'HASS_CLIMATE_MIN_TEMP', env('HASS_CLIMATE_MIN_TEMP') ?: '23'
         buildConfigField 'int', 'HASS_CLIMATE_MAX_TEMP', env('HASS_CLIMATE_MAX_TEMP') ?: '26'
     }
