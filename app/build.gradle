@@ -11,7 +11,7 @@ def array = { List<String> values -> 'new String[]{' + values.collect { quoted(i
 def profiles = []
 for (int i = 1; env("PROFILE_${i}_EMAIL".toString()); i++) {
     def key = { String name -> env("PROFILE_${i}_${name}".toString()) }
-    profiles << [email: key('EMAIL'), wallpaper: key('WALLPAPER_DRAWABLE'), footballTeams: key('FOOTBALL_TEAM_IDS')]
+    profiles << [email: key('EMAIL'), footballTeams: key('FOOTBALL_TEAM_IDS')]
 }
 if (profiles.isEmpty()) {
     throw new GradleException('No profiles: set at least PROFILE_1_EMAIL in .env (see .env.example)')
@@ -29,7 +29,6 @@ android {
         versionName '1.0'
 
         buildConfigField 'String[]', 'PROFILE_EMAILS', array(profiles*.email)
-        buildConfigField 'String[]', 'PROFILE_WALLPAPER_DRAWABLES', array(profiles*.wallpaper)
         buildConfigField 'String[]', 'PROFILE_FOOTBALL_TEAM_IDS', array(profiles*.footballTeams)
         buildConfigField 'String', 'FOOTBALL_DATA_TOKEN', quoted(env('FOOTBALL_DATA_TOKEN'))
         buildConfigField 'String', 'HASS_URL', quoted(env('HASS_URL'))

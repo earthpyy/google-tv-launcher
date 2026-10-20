@@ -5,6 +5,7 @@
     <string name="pill_light">Lights</string>
     <string name="pill_ac">Air conditioner</string>
     <string name="pill_profile">Switch profile</string>
+    <string name="pill_wallpaper">Wallpaper</string>
     <string name="pill_store">Play Store</string>
     <string name="picker_title">Who\'s watching?</string>
     <string name="pill_settings">Settings</string>
@@ -34,5 +35,19 @@
     <string name="menu_move">Move</string>
     <string name="menu_remove_from_dock">Remove from dock</string>
     <string name="menu_unhide">Unhide</string>
+    <string name="wallpaper_static">Static</string>
+    <string name="wallpaper_feeds">Feeds</string>
+    <string name="wallpaper_loading">Loading…</string>
+    <string name="wallpaper_unavailable">Unavailable</string>
+    <string name="wallpaper_black">Black</string>
+    <string name="wallpaper_midnight">Midnight</string>
+    <string name="wallpaper_teal">Teal</string>
+    <string name="wallpaper_plum">Plum</string>
+    <string name="wallpaper_forest">Forest</string>
+    <string name="wallpaper_ember">Ember</string>
+    <string name="wallpaper_slate">Slate</string>
+    <string name="wallpaper_bing">Bing</string>
+    <string name="wallpaper_nasa">NASA</string>
+    <string name="wallpaper_wikimedia">Wikimedia</string>
     <string name="launch_failed">Can\'t open %1$s</string>
 </resources>

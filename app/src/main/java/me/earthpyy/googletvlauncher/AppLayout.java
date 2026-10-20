@@ -7,7 +7,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-/** One profile's dock order and hidden apps, kept on the TV and keyed by the profile's email hash. */
+/** One profile's dock order, hidden apps and wallpaper, kept on the TV and keyed by the profile's email hash. */
 final class AppLayout {
     static final int DOCK_SIZE = 4;
     private static final String PREFS = "layout";
@@ -15,6 +15,7 @@ final class AppLayout {
     private final SharedPreferences prefs;
     private final String dockKey;
     private final String hiddenKey;
+    private final String wallpaperKey;
     // Apps that aren't installed stay listed, so a reinstalled app comes back to its place
     private final List<String> dock;
     private final List<String> hidden;
@@ -23,6 +24,7 @@ final class AppLayout {
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         dockKey = "dock_" + profile.hash;
         hiddenKey = "hidden_" + profile.hash;
+        wallpaperKey = "wallpaper_" + profile.hash;
         dock = Config.list(prefs.getString(dockKey, ""));
         hidden = Config.list(prefs.getString(hiddenKey, ""));
     }
@@ -73,6 +75,14 @@ final class AppLayout {
     void unhide(String packageName) {
         hidden.remove(packageName);
         save();
+    }
+
+    Wallpaper wallpaper() {
+        return Wallpaper.byId(prefs.getString(wallpaperKey, ""));
+    }
+
+    void setWallpaper(Wallpaper wallpaper) {
+        prefs.edit().putString(wallpaperKey, wallpaper.id).apply();
     }
 
     private void save() {

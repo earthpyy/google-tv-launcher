@@ -70,13 +70,12 @@ Per profile (`PROFILE_n_…`):
 
 | Setting | What it does |
 |---|---|
-| `PROFILE_n_WALLPAPER_DRAWABLE` | Put an image in `app/src/main/res/drawable/` (e.g. `wallpaper.jpg`) and set this to its name without the extension (`wallpaper`). Empty means pitch black. A dark gradient keeps the text readable. |
 | `PROFILE_n_FOOTBALL_TEAM_IDS` | Favourite teams for the [football line](#football), comma-separated (e.g. `57,64`). Empty means no football line. |
 
 With two or more profiles:
 
 - **Who's watching?** shows up on a cold start, and when the TV wakes from at least 5 minutes of standby with the home screen in front. Left/Right to pick, OK to choose. Back does nothing.
-- **The profile button** (your avatar, left of Play Store) switches to the next profile.
+- **The profile button** (your avatar, left of the wallpaper button) switches to the next profile.
 
 Switching profiles puts focus on the first dock app.
 
@@ -95,6 +94,15 @@ Hold OK on any app for about half a second to open its menu:
 While any app is hidden, a small **Hidden apps** button sits under the grid. OK on it shows them, dimmed, underneath. They close again on Home, on a profile switch and in standby. Play Store and Settings never show in the grid; they have their own buttons.
 
 The layout lives in the launcher's app data, so uninstalling the launcher (or a signature change) resets it. An uninstalled app keeps its dock place or hidden state, and gets it back if reinstalled.
+
+### Wallpaper
+
+Also set on the TV, per profile. Press the **wallpaper button** (left of Play Store) and a strip of choices takes the dock's place. Left/Right preview each one behind the home screen, OK keeps it, Back (or Home) puts the old one back.
+
+- **Static:** Black (the default) and six dark gradients.
+- **Feeds:** a new picture every day from [Bing](https://www.bing.com), [NASA Image of the Day](https://www.nasa.gov/image-of-the-day/) or [Wikimedia Commons](https://commons.wikimedia.org/wiki/Commons:Picture_of_the_day). None need a key. Its title and credit sit small under the dock, and a dark gradient keeps the text readable.
+
+Only the chosen feed is downloaded, sized to the screen and cached on the TV. It's checked when the home screen appears, at most every 3 hours, never in the background; opening the strip checks all three. If a feed can't be reached, its last picture stays; before the first one loads, it shows black.
 
 ### Home Assistant
 

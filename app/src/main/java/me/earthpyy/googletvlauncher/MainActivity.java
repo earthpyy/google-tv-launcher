@@ -71,6 +71,8 @@ public class MainActivity extends Activity {
     private final ExecutorService profileLoader = Executors.newSingleThreadExecutor();
     // And football-data.org gets its own for the same reason
     private final ExecutorService footballLoader = Executors.newSingleThreadExecutor();
+    // Wallpaper feeds too; their pictures are the biggest downloads
+    private final ExecutorService wallpaperLoader = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final List<AppEntry> dockApps = new ArrayList<>();
     private final List<AppEntry> gridApps = new ArrayList<>();
@@ -87,6 +89,18 @@ public class MainActivity extends Activity {
     private AppLayout layout;
     private boolean refreshingProfiles;
 
+    private WallpaperFeeds feeds;
+    private WallpaperPicker wallpaperPicker;
+    private ImageView wallpaperView;
+    private View wallpaperScrim;
+    private TextView wallpaperCaption;
+    private ImageView wallpaperPill;
+    // What's behind the home screen: the saved choice, or the one being previewed in the picker
+    private Wallpaper shownWallpaper = Wallpaper.BLACK;
+    // Feed pictures decoded so far, and feeds with a load in flight; main thread only
+    private final Map<String, WallpaperFeeds.Image> feedImages = new HashMap<>();
+    private final Set<String> loadingFeeds = new HashSet<>();
+
     private FrameLayout content;
     private GlassView glass;
     private View glow;
@@ -96,6 +110,7 @@ public class MainActivity extends Activity {
     private TextView date;
     private View storePill;
     private View settingsPill;
+    private View dockBand;
     private final List<View> pills = new ArrayList<>();
     private HomeControls home;
     private FootballLine football;
@@ -203,6 +218,14 @@ public class MainActivity extends Activity {
         date = findViewById(R.id.date);
         storePill = findViewById(R.id.pill_store);
         settingsPill = findViewById(R.id.pill_settings);
+        wallpaperPill = findViewById(R.id.pill_wallpaper);
+        dockBand = findViewById(R.id.dock_band);
+        wallpaperView = findViewById(R.id.wallpaper);
+        wallpaperScrim = findViewById(R.id.wallpaper_scrim);
+        wallpaperScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0xB3000000, 0x40000000, 0xE6000000}));
+        wallpaperCaption = findViewById(R.id.wallpaper_caption);
+        wallpaperCaption.setTypeface(Fonts.outfit(this, 400));
         dockRow = findViewById(R.id.dock_row);
         grid = findViewById(R.id.grid);
         hiddenToggle = findViewById(R.id.hidden_toggle);
@@ -238,14 +261,15 @@ public class MainActivity extends Activity {
         if (home.hasClimate()) {
             pills.add(findViewById(R.id.pill_ac));
         }
-        // With a single profile there is nothing to switch to; Play Store takes over the wider gap
+        // With a single profile there is nothing to switch to; the wallpaper pill takes over the wider gap
         if (hasManyProfiles()) {
             profilePill.setVisibility(View.VISIBLE);
             pills.add(profilePill);
         } else {
-            ((ViewGroup.MarginLayoutParams) storePill.getLayoutParams()).setMarginStart(
+            ((ViewGroup.MarginLayoutParams) wallpaperPill.getLayoutParams()).setMarginStart(
                     ((ViewGroup.MarginLayoutParams) profilePill.getLayoutParams()).getMarginStart());
         }
+        pills.add(wallpaperPill);
         pills.add(storePill);
         pills.add(settingsPill);
 
@@ -253,6 +277,24 @@ public class MainActivity extends Activity {
         scrollSpring.getSpring().setStiffness(SpringForce.STIFFNESS_LOW).setDampingRatio(SpringForce.DAMPING_RATIO_NO_BOUNCY);
 
         setupGeometry();
+        feeds = new WallpaperFeeds(this, screenWidth, screenHeight);
+        wallpaperPicker = new WallpaperPicker(this, new WallpaperPicker.Listener() {
+            @Override
+            public void onPreview(Wallpaper wallpaper) {
+                showWallpaper(wallpaper);
+            }
+
+            @Override
+            public void onPick(Wallpaper wallpaper) {
+                layout.setWallpaper(wallpaper);
+                closeWallpaperPicker();
+            }
+
+            @Override
+            public void onCancel() {
+                closeWallpaperPicker();
+            }
+        });
         setupWallpaper();
         showActiveProfile();
         restoreFocusState();
@@ -300,6 +342,9 @@ public class MainActivity extends Activity {
         }
         wokeAt = 0;
         refreshProfiles();
+        if (shownWallpaper.isFeed()) {
+            loadFeed(shownWallpaper.id);
+        }
     }
 
     @Override
@@ -319,6 +364,7 @@ public class MainActivity extends Activity {
         loader.shutdownNow();
         profileLoader.shutdownNow();
         footballLoader.shutdownNow();
+        wallpaperLoader.shutdownNow();
         super.onDestroy();
     }
 
@@ -358,6 +404,12 @@ public class MainActivity extends Activity {
         if (picker.isOpen()) {
             if (event.getRepeatCount() == 0 || !isSelectKey(code)) {
                 picker.onKey(code);
+            }
+            return true;
+        }
+        if (wallpaperPicker.isOpen()) {
+            if (event.getRepeatCount() == 0 || !isSelectKey(code)) {
+                wallpaperPicker.onKey(code);
             }
             return true;
         }
@@ -553,6 +605,8 @@ public class MainActivity extends Activity {
                     home.pressClimate();
                 } else if (pill == profilePill) {
                     switchProfile((activeProfile + 1) % profiles.size());
+                } else if (pill == wallpaperPill) {
+                    openWallpaperPicker();
                 } else if (pill == storePill) {
                     Intent store = getPackageManager().getLeanbackLaunchIntentForPackage("com.android.vending");
                     startSafely(store, getString(R.string.pill_store));
@@ -777,8 +831,7 @@ public class MainActivity extends Activity {
         gridTop = screenHeight + Math.round(16 * density);
         topInset = Math.round(56 * density);
 
-        View band = findViewById(R.id.dock_band);
-        FrameLayout.LayoutParams bandParams = (FrameLayout.LayoutParams) band.getLayoutParams();
+        FrameLayout.LayoutParams bandParams = (FrameLayout.LayoutParams) dockBand.getLayoutParams();
         bandParams.width = screenWidth - 2 * (side - bandPad);
         bandParams.height = bandHeight;
         bandParams.leftMargin = side - bandPad;
@@ -787,6 +840,12 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams dockParams = (FrameLayout.LayoutParams) dockRow.getLayoutParams();
         dockParams.leftMargin = side - gap / 2;
         dockParams.topMargin = bandTop + bandPad;
+
+        // Under the band, lined up with its right end
+        FrameLayout.LayoutParams captionParams = (FrameLayout.LayoutParams) wallpaperCaption.getLayoutParams();
+        captionParams.topMargin = bandTop + bandHeight + Math.round(12 * density);
+        captionParams.rightMargin = side - bandPad;
+        wallpaperCaption.setMaxWidth(screenWidth / 2);
 
         FrameLayout.LayoutParams gridParams = (FrameLayout.LayoutParams) grid.getLayoutParams();
         gridParams.leftMargin = side - gap / 2;
@@ -831,22 +890,105 @@ public class MainActivity extends Activity {
         setGlowColor(0xFF5A6B8C);
     }
 
+    // Wallpaper
+
+    /** The active profile's saved wallpaper, loading its feed picture if it's a feed. */
     private void setupWallpaper() {
-        String name = profiles.get(activeProfile).wallpaper;
-        int id = name.isEmpty() ? 0 : getResources().getIdentifier(name, "drawable", getPackageName());
-        ImageView wallpaper = findViewById(R.id.wallpaper);
-        View scrim = findViewById(R.id.wallpaper_scrim);
-        if (id == 0) {
-            wallpaper.setImageDrawable(null);
-            wallpaper.setVisibility(View.GONE);
-            scrim.setVisibility(View.GONE);
+        showWallpaper(layout.wallpaper());
+        if (shownWallpaper.isFeed()) {
+            loadFeed(shownWallpaper.id);
+        }
+    }
+
+    /** Puts a wallpaper behind the home screen. A feed shows black until its picture has loaded. */
+    private void showWallpaper(Wallpaper wallpaper) {
+        shownWallpaper = wallpaper;
+        WallpaperFeeds.Image image = wallpaper.isFeed() ? feedImages.get(wallpaper.id) : null;
+        if (image != null) {
+            wallpaperView.setImageBitmap(image.bitmap);
+        } else {
+            wallpaperView.setImageDrawable(wallpaper.drawable());
+        }
+        // Black is the root's own background
+        boolean shown = image != null || (!wallpaper.isFeed() && wallpaper != Wallpaper.BLACK);
+        wallpaperView.setVisibility(shown ? View.VISIBLE : View.GONE);
+        // Photos need the scrim to keep text readable; the gradients are dark already
+        wallpaperScrim.setVisibility(image != null ? View.VISIBLE : View.GONE);
+        wallpaperCaption.setText(image != null ? image.caption : "");
+        updateWallpaperCaption();
+    }
+
+    private void updateWallpaperCaption() {
+        boolean shown = !wallpaperPicker.isOpen() && wallpaperCaption.getText().length() > 0;
+        wallpaperCaption.setVisibility(shown ? View.VISIBLE : View.GONE);
+    }
+
+    /**
+     * Decodes a feed's cached picture if it isn't in memory yet, then downloads a new one if the cache is older than
+     * {@link WallpaperFeeds#MAX_AGE_MS}. Only runs when the launcher shows or the picker opens; nothing polls.
+     */
+    private void loadFeed(String feed) {
+        if (!loadingFeeds.add(feed)) {
             return;
         }
-        wallpaper.setImageResource(id);
-        wallpaper.setVisibility(View.VISIBLE);
-        scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0xB3000000, 0x40000000, 0xE6000000}));
-        scrim.setVisibility(View.VISIBLE);
+        boolean inMemory = feedImages.containsKey(feed);
+        boolean stale = feeds.isStale(feed);
+        if (!inMemory) {
+            wallpaperPicker.setFeed(feed, null, true);
+        }
+        wallpaperLoader.execute(() -> {
+            WallpaperFeeds.Image cached = inMemory ? null : feeds.cached(feed);
+            if (cached != null) {
+                mainHandler.post(() -> showFeedImage(feed, cached));
+            }
+            WallpaperFeeds.Image fetched = null;
+            if (stale || (!inMemory && cached == null)) {
+                try {
+                    fetched = feeds.fetch(feed);
+                } catch (IOException e) {
+                    // Keep showing the cached picture; the next resume retries
+                }
+            }
+            WallpaperFeeds.Image result = fetched;
+            mainHandler.post(() -> {
+                loadingFeeds.remove(feed);
+                if (result != null) {
+                    showFeedImage(feed, result);
+                } else if (!feedImages.containsKey(feed)) {
+                    wallpaperPicker.setFeed(feed, null, false);
+                }
+            });
+        });
+    }
+
+    private void showFeedImage(String feed, WallpaperFeeds.Image image) {
+        if (isDestroyed()) {
+            return;
+        }
+        feedImages.put(feed, image);
+        wallpaperPicker.setFeed(feed, image.bitmap, false);
+        if (shownWallpaper.id.equals(feed)) {
+            showWallpaper(shownWallpaper);
+        }
+    }
+
+    /** The strip takes the dock's place; Left/Right preview, OK saves for this profile, Back reverts. */
+    private void openWallpaperPicker() {
+        dockBand.setVisibility(View.INVISIBLE);
+        dockRow.setVisibility(View.INVISIBLE);
+        glow.setVisibility(View.INVISIBLE);
+        wallpaperPicker.show(shownWallpaper);
+        updateWallpaperCaption();
+        for (Wallpaper feed : Wallpaper.FEEDS) {
+            loadFeed(feed.id);
+        }
+    }
+
+    private void closeWallpaperPicker() {
+        dockBand.setVisibility(View.VISIBLE);
+        dockRow.setVisibility(View.VISIBLE);
+        glow.setVisibility(View.VISIBLE);
+        showWallpaper(layout.wallpaper());
     }
 
     // Profiles
@@ -1195,11 +1337,12 @@ public class MainActivity extends Activity {
         setFocus(ZONE_DOCK, moveFrom, false);
     }
 
-    /** Closes the tile menu, cancels a dock move and forgets a held OK; for Home, standby and leaving. */
+    /** Closes the tile menu and wallpaper picker, cancels a dock move and forgets a held OK; for Home, standby and leaving. */
     private void dismissEditing() {
         cancelPress();
         menu.close();
         cancelMove();
+        wallpaperPicker.cancel();
     }
 
     private void closeHidden() {

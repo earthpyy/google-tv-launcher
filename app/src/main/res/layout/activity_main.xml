@@ -123,6 +123,12 @@
                 android:visibility="gone" />
 
             <ImageView
+                android:id="@+id/pill_wallpaper"
+                style="@style/IconPill"
+                android:contentDescription="@string/pill_wallpaper"
+                android:src="@drawable/ic_wallpaper" />
+
+            <ImageView
                 android:id="@+id/pill_store"
                 style="@style/IconPill"
                 android:contentDescription="@string/pill_store"
@@ -147,6 +153,18 @@
             android:layout_height="wrap_content"
             android:clipChildren="false"
             android:orientation="horizontal" />
+
+        <!-- Title and credit of a feed wallpaper, under the dock's right end; placed in code -->
+        <TextView
+            android:id="@+id/wallpaper_caption"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textColor="#80FFFFFF"
+            android:textSize="12sp"
+            android:visibility="gone" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/grid"
@@ -261,6 +279,45 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
     </FrameLayout>
+
+    <!-- Wallpaper strip, in place of the dock while open; the wallpaper behind previews the focused choice -->
+    <LinearLayout
+        android:id="@+id/wallpaper_picker"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingBottom="44dp"
+        android:visibility="gone">
+
+        <HorizontalScrollView
+            android:id="@+id/wallpaper_scroll"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingStart="56dp"
+            android:paddingEnd="56dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/wallpaper_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <TextView
+            android:id="@+id/wallpaper_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:singleLine="true"
+            android:textColor="#FFFFFFFF"
+            android:textSize="22sp" />
+    </LinearLayout>
 
     <!-- Who's watching: replaces the home screen on cold start and after a long standby -->
     <FrameLayout
