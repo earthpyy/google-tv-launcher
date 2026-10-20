@@ -1,0 +1,3 @@
+# Disabled so the custom launcher owns HOME. restore.sh re-enables every line.
+com.google.android.apps.tv.launcherx
+com.google.android.tungsten.setupwraith
