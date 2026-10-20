@@ -69,7 +69,6 @@ public class MainActivity extends Activity {
     private TextView greeting;
     private TextView clock;
     private TextView date;
-    private TextView heroTitle;
     private TextView wifiPill;
     private View[] pills;
     private LinearLayout dockRow;
@@ -136,7 +135,6 @@ public class MainActivity extends Activity {
         greeting = findViewById(R.id.greeting);
         clock = findViewById(R.id.clock);
         date = findViewById(R.id.date);
-        heroTitle = findViewById(R.id.hero_title);
         wifiPill = findViewById(R.id.pill_wifi);
         pills = new View[]{wifiPill, findViewById(R.id.pill_store), findViewById(R.id.pill_settings)};
         dockRow = findViewById(R.id.dock_row);
@@ -145,7 +143,6 @@ public class MainActivity extends Activity {
         greeting.setTypeface(Fonts.outfit(this, 300));
         clock.setTypeface(Fonts.outfit(this, 200));
         date.setTypeface(Fonts.outfit(this, 300));
-        heroTitle.setTypeface(Fonts.outfit(this, 300));
         wifiPill.setTypeface(Fonts.outfit(this, 400));
 
         scrollSpring = new SpringAnimation(content, DynamicAnimation.TRANSLATION_Y, 0f);
@@ -385,7 +382,7 @@ public class MainActivity extends Activity {
         }
 
         if (zone == ZONE_DOCK) {
-            updateHero(immediate);
+            updateGlow(immediate);
         }
         moveGlass(current, immediate);
         scrollTo(zone == ZONE_GRID ? -(gridTop + (gridIndex / COLUMNS) * rowHeight - topInset) : 0, immediate);
@@ -429,13 +426,11 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void updateHero(boolean immediate) {
+    private void updateGlow(boolean immediate) {
         if (dockApps.isEmpty()) {
-            heroTitle.setText("");
             return;
         }
         AppEntry app = dockApps.get(dockIndex);
-        heroTitle.setText(app.label);
 
         float centerX = dockRow.getLeft() + cellWidth * (dockIndex + 0.5f);
         float targetX = centerX - glow.getLayoutParams().width / 2f;
@@ -479,9 +474,6 @@ public class MainActivity extends Activity {
         bandTop = screenHeight - Math.round(44 * density) - bandHeight;
         gridTop = screenHeight + Math.round(16 * density);
         topInset = Math.round(56 * density);
-
-        FrameLayout.LayoutParams hero = (FrameLayout.LayoutParams) findViewById(R.id.hero_area).getLayoutParams();
-        hero.height = bandTop - Math.round(14 * density);
 
         View band = findViewById(R.id.dock_band);
         FrameLayout.LayoutParams bandParams = (FrameLayout.LayoutParams) band.getLayoutParams();
@@ -596,7 +588,7 @@ public class MainActivity extends Activity {
             int index = zone == ZONE_TOP ? topIndex : zone == ZONE_DOCK ? dockIndex : gridIndex;
             setFocus(zone, index, true);
             if (zone != ZONE_DOCK) {
-                updateHero(true);
+                updateGlow(true);
             }
         });
     }

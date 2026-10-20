@@ -96,22 +96,6 @@
                 android:src="@drawable/ic_settings" />
         </LinearLayout>
 
-        <FrameLayout
-            android:id="@+id/hero_area"
-            android:layout_width="match_parent"
-            android:layout_height="0dp">
-
-            <TextView
-                android:id="@+id/hero_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom|start"
-                android:layout_marginStart="64dp"
-                android:singleLine="true"
-                android:textColor="#F2FFFFFF"
-                android:textSize="44sp" />
-        </FrameLayout>
-
         <View
             android:id="@+id/dock_band"
             android:layout_width="0dp"
