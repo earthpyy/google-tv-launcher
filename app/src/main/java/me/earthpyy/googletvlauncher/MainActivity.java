@@ -1089,6 +1089,9 @@ public class MainActivity extends Activity {
                 AppEntry app = gridApps.get(gridIndex);
                 items.add(new TileMenu.Item(getString(R.string.menu_add_to_dock), dockApps.size() < AppLayout.DOCK_SIZE, () -> {
                     layout.addToDock(app.packageName, installedPackages());
+                    // Follow the app to its new place, last in the dock
+                    zone = ZONE_DOCK;
+                    dockIndex = dockApps.size();
                     showApps(allApps);
                 }));
                 items.add(new TileMenu.Item(getString(R.string.menu_hide), true, () -> {
