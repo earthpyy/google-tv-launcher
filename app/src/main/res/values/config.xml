@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dock apps, left to right. Missing packages are skipped. -->
+    <string-array name="dock_packages" translatable="false">
+        <item>com.google.android.youtube.tv</item>
+        <item>com.iqiyi.i18n.tv</item>
+        <item>com.tencent.qqlivei18n</item>
+        <item>com.ais.mimo.aisplay.tv</item>
+    </string-array>
+
+    <!-- Apps never shown in the grid. Settings and Play Store have their own pills. -->
+    <string-array name="hidden_packages" translatable="false">
+        <item>com.android.tv.settings</item>
+        <item>com.android.vending</item>
+    </string-array>
+
+    <!-- Name of a drawable in res/drawable (e.g. "wallpaper" for wallpaper.jpg). Empty = pitch black. -->
+    <string name="wallpaper_drawable" translatable="false"></string>
+</resources>

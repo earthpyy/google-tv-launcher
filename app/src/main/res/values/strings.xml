@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Home</string>
+    <string name="dream_name">Clock</string>
+    <string name="pill_wifi">Wi-Fi</string>
+    <string name="pill_store">Play Store</string>
+    <string name="pill_settings">Settings</string>
+    <string name="wifi_offline">Offline</string>
+    <string name="wifi_ethernet">Ethernet</string>
+    <string name="launch_failed">Can\'t open %1$s</string>
+</resources>

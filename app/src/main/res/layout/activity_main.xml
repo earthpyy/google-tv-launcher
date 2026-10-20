@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black"
+    android:descendantFocusability="blocksDescendants"
+    android:focusable="true"
+    android:focusableInTouchMode="true">
+
+    <ImageView
+        android:id="@+id/wallpaper"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <View
+        android:id="@+id/wallpaper_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- Scrolls as a whole: home screen on top, app grid below it -->
+    <FrameLayout
+        android:id="@+id/content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipChildren="false">
+
+        <View
+            android:id="@+id/glow"
+            android:layout_width="760dp"
+            android:layout_height="460dp" />
+
+        <LinearLayout
+            android:id="@+id/clock_block"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="64dp"
+            android:layout_marginTop="36dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/greeting"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#B3FFFFFF"
+                android:textSize="20sp" />
+
+            <TextView
+                android:id="@+id/clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="-8dp"
+                android:includeFontPadding="false"
+                android:textColor="#FFFFFFFF"
+                android:textSize="84sp" />
+
+            <TextView
+                android:id="@+id/date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#B3FFFFFF"
+                android:textSize="20sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/pills"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="44dp"
+            android:layout_marginEnd="64dp"
+            android:clipChildren="false"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/pill_wifi"
+                style="@style/Pill"
+                android:drawableStart="@drawable/ic_wifi"
+                android:maxWidth="240dp"
+                android:text="@string/pill_wifi" />
+
+            <TextView
+                android:id="@+id/pill_store"
+                style="@style/Pill"
+                android:drawableStart="@drawable/ic_store"
+                android:text="@string/pill_store" />
+
+            <TextView
+                android:id="@+id/pill_settings"
+                style="@style/Pill"
+                android:drawableStart="@drawable/ic_settings"
+                android:text="@string/pill_settings" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/hero_area"
+            android:layout_width="match_parent"
+            android:layout_height="0dp">
+
+            <TextView
+                android:id="@+id/hero_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|start"
+                android:layout_marginStart="64dp"
+                android:singleLine="true"
+                android:textColor="#F2FFFFFF"
+                android:textSize="44sp" />
+        </FrameLayout>
+
+        <View
+            android:id="@+id/dock_band"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:background="@drawable/dock_band" />
+
+        <LinearLayout
+            android:id="@+id/dock_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:clipChildren="false"
+            android:orientation="horizontal" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/grid"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:overScrollMode="never" />
+
+        <me.earthpyy.googletvlauncher.GlassView
+            android:id="@+id/glass"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </FrameLayout>
+</FrameLayout>
