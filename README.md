@@ -37,6 +37,7 @@ If `adb` says "No route to host" even though the TV is reachable, macOS Local Ne
 | Script | What it does |
 |---|---|
 | `scripts/pair.sh` | Pair and connect over Wireless debugging |
+| `scripts/tv.sh` | Run any adb command against the TV (finds the current connect port for you) |
 | `scripts/backup.sh` | Save package lists, `getprop` and all settings to `backup/<timestamp>/` (gitignored) |
 | `scripts/build-install.sh` | Build the signed release APK, install it, grant the Wi-Fi name permission, set it as home and as the screensaver |
 | `scripts/restore.sh` | Re-enable everything in `debloat-list.txt` and `launcher-swap-list.txt` and restore the stock home and ambient mode |
@@ -50,8 +51,7 @@ If `adb` says "No route to host" even though the TV is reachable, macOS Local Ne
 ### Re-enabling an app
 
 ```sh
-source scripts/lib.sh
-tv shell pm enable <package>
+./scripts/tv.sh shell pm enable <package>
 ```
 
 Or run `scripts/restore.sh` to undo everything at once.
@@ -61,14 +61,14 @@ Or run `scripts/restore.sh` to undo everything at once.
 On Google TV, `com.google.android.tungsten.setupwraith` grabs HOME as soon as the stock launcher is disabled. Disabling it deletes every Wi-Fi network it created during first setup, so before disabling it the Wi-Fi networks were forgotten and re-joined in Settings (now owned by the system). Check with:
 
 ```sh
-tv shell "dumpsys wifi | grep -o 'cname=[^ ]*' | sort | uniq -c"
+./scripts/tv.sh shell "dumpsys wifi | grep -o 'cname=[^ ]*' | sort | uniq -c"
 ```
 
 ## Customising
 
 All in [`app/src/main/res/values/config.xml`](app/src/main/res/values/config.xml), then `./scripts/build-install.sh`:
 
-- **Dock apps and order**: `dock_packages`, left to right. Find package names with `tv shell pm list packages -3`.
+- **Dock apps and order**: `dock_packages`, left to right. Find package names with `./scripts/tv.sh shell pm list packages -3`.
 - **Hide apps from the grid**: add them to `hidden_packages`.
 - **Wallpaper**: put an image in `app/src/main/res/drawable/` (e.g. `wallpaper.jpg`) and set `wallpaper_drawable` to its name without the extension (`wallpaper`). Leave it empty for pitch black. A dark gradient is drawn over it so the text stays readable.
 

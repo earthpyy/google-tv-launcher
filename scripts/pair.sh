@@ -7,7 +7,7 @@ read -rp "Pairing port shown on the TV (IP address & Port, e.g. 40367): " pair_p
 read -rp "Wi-Fi pairing code: " code
 "$ADB" pair "$TV_HOST:$pair_port" "$code"
 
-port="$("$ADB" mdns services | awk -v h="$TV_HOST:" '$2 ~ /_adb-tls-connect/ && index($3, h) == 1 { split($3, a, ":"); print a[2]; exit }')"
+port="$(tv_mdns_port)"
 if [[ -z "$port" ]]; then
   read -rp "Connect port (the IP address & Port on the Wireless debugging screen): " port
 fi

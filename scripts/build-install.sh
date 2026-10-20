@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the signed release APK, install it on the TV and make it the default home.
 source "$(dirname "$0")/lib.sh"
+tv_connect
 : "${KEYSTORE_FILE:?KEYSTORE_FILE is not set (see .env.example)}"
 export ANDROID_HOME KEYSTORE_FILE KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD
 

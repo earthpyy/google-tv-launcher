@@ -35,13 +35,11 @@ import androidx.dynamicanimation.animation.SpringForce;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -177,7 +175,10 @@ public class MainActivity extends Activity {
         time.addAction(Intent.ACTION_TIMEZONE_CHANGED);
         registerReceiver(timeReceiver, time);
         updateClock();
-        getSystemService(ConnectivityManager.class).registerDefaultNetworkCallback(networkCallback);
+        ConnectivityManager connectivity = getSystemService(ConnectivityManager.class);
+        // No callback fires when there is no network at all, so start from the current state
+        wifiPill.setText(connectivity.getActiveNetwork() == null ? R.string.wifi_offline : R.string.pill_wifi);
+        connectivity.registerDefaultNetworkCallback(networkCallback);
     }
 
     @Override
@@ -641,8 +642,8 @@ public class MainActivity extends Activity {
             salutation = "Good night";
         }
         greeting.setText(salutation);
-        clock.setText(new SimpleDateFormat("HH:mm", Locale.ENGLISH).format(now.getTime()));
-        date.setText(new SimpleDateFormat("EEEE, d MMMM", Locale.ENGLISH).format(now.getTime()));
+        clock.setText(TimeText.clock(now.getTime()));
+        date.setText(TimeText.date(now.getTime()));
     }
 
     private String networkName(NetworkCapabilities capabilities) {

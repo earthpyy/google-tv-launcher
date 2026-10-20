@@ -38,10 +38,8 @@ final class AppLoader {
             if (activity.packageName.equals(context.getPackageName()) || !seen.add(activity.packageName)) {
                 continue;
             }
+            // Falls back to the application banner when the activity has none
             Drawable banner = activity.loadBanner(pm);
-            if (banner == null) {
-                banner = activity.applicationInfo.loadBanner(pm);
-            }
             Drawable icon = activity.loadIcon(pm);
             String label = info.loadLabel(pm).toString();
             ComponentName component = new ComponentName(activity.packageName, activity.name);

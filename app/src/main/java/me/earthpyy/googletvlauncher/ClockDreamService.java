@@ -8,9 +8,7 @@ import android.service.dreams.DreamService;
 import android.view.View;
 import android.widget.TextView;
 
-import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Locale;
 import java.util.Random;
 
 /** Black screensaver with a thin clock that drifts every minute to avoid burn-in. */
@@ -58,8 +56,8 @@ public class ClockDreamService extends DreamService {
 
     private void update(boolean drift) {
         Date now = new Date();
-        clock.setText(new SimpleDateFormat("HH:mm", Locale.ENGLISH).format(now));
-        date.setText(new SimpleDateFormat("EEEE, d MMMM", Locale.ENGLISH).format(now));
+        clock.setText(TimeText.clock(now));
+        date.setText(TimeText.date(now));
         if (drift) {
             View parent = (View) block.getParent();
             float rangeX = Math.max(0, (parent.getWidth() - block.getWidth()) / 2f - 48);

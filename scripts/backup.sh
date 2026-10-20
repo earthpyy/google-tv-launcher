@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Snapshot package state, properties and settings before changing anything.
 source "$(dirname "$0")/lib.sh"
+tv_connect
 
 dir="$ROOT/backup/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$dir"
