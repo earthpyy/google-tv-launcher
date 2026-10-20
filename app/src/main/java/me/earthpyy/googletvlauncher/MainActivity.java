@@ -71,7 +71,7 @@ public class MainActivity extends Activity {
     private TextView date;
     private TextView heroTitle;
     private TextView wifiPill;
-    private TextView[] pills;
+    private View[] pills;
     private LinearLayout dockRow;
     private RecyclerView grid;
     private TileAdapter gridAdapter;
@@ -138,7 +138,7 @@ public class MainActivity extends Activity {
         date = findViewById(R.id.date);
         heroTitle = findViewById(R.id.hero_title);
         wifiPill = findViewById(R.id.pill_wifi);
-        pills = new TextView[]{wifiPill, findViewById(R.id.pill_store), findViewById(R.id.pill_settings)};
+        pills = new View[]{wifiPill, findViewById(R.id.pill_store), findViewById(R.id.pill_settings)};
         dockRow = findViewById(R.id.dock_row);
         grid = findViewById(R.id.grid);
 
@@ -146,9 +146,7 @@ public class MainActivity extends Activity {
         clock.setTypeface(Fonts.outfit(this, 200));
         date.setTypeface(Fonts.outfit(this, 300));
         heroTitle.setTypeface(Fonts.outfit(this, 300));
-        for (TextView pill : pills) {
-            pill.setTypeface(Fonts.outfit(this, 400));
-        }
+        wifiPill.setTypeface(Fonts.outfit(this, 400));
 
         scrollSpring = new SpringAnimation(content, DynamicAnimation.TRANSLATION_Y, 0f);
         scrollSpring.getSpring().setStiffness(SpringForce.STIFFNESS_LOW).setDampingRatio(SpringForce.DAMPING_RATIO_NO_BOUNCY);
