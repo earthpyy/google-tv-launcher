@@ -14,7 +14,7 @@ import java.util.function.IntConsumer;
 
 /**
  * The "Who's watching?" screen: a row of avatars covering the home screen. Left/Right move, OK picks;
- * Back does nothing, so a profile has to be chosen.
+ * Back does nothing, so a profile has to be chosen. The focused profile's wallpaper shows behind it.
  */
 final class ProfilePicker {
     private static final float FOCUS_SCALE = 1.08f;
@@ -23,14 +23,16 @@ final class ProfilePicker {
     private final View root;
     private final TextView clock;
     private final IntConsumer onPick;
+    private final IntConsumer onFocus;
     private final List<ImageView> avatars = new ArrayList<>();
     private final List<TextView> names = new ArrayList<>();
 
     private boolean open;
     private int index;
 
-    ProfilePicker(Activity activity, int count, IntConsumer onPick) {
+    ProfilePicker(Activity activity, int count, IntConsumer onPick, IntConsumer onFocus) {
         this.onPick = onPick;
+        this.onFocus = onFocus;
         root = activity.findViewById(R.id.picker);
         clock = activity.findViewById(R.id.picker_clock);
         clock.setTypeface(Fonts.outfit(activity, 300));
@@ -108,5 +110,6 @@ final class ProfilePicker {
                 avatar.animate().scaleX(scale).scaleY(scale).setDuration(150).start();
             }
         }
+        onFocus.accept(index);
     }
 }

@@ -8,19 +8,26 @@
     android:focusable="true"
     android:focusableInTouchMode="true">
 
+    <!-- The outgoing wallpaper, held under the new one while it fades in -->
+    <ImageView
+        android:id="@+id/wallpaper_previous"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop" />
+
     <ImageView
         android:id="@+id/wallpaper"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:importantForAccessibility="no"
-        android:scaleType="centerCrop"
-        android:visibility="gone" />
+        android:scaleType="centerCrop" />
 
     <View
         android:id="@+id/wallpaper_scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone" />
+        android:alpha="0" />
 
     <!-- Scrolls as a whole: home screen on top, app grid below it -->
     <FrameLayout

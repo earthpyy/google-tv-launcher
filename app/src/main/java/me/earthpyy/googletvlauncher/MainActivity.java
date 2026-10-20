@@ -53,6 +53,7 @@ public class MainActivity extends Activity {
     private static final int ZONE_HIDDEN_TOGGLE = 3;
     private static final int ZONE_HIDDEN = 4;
     private static final int COLUMNS = 4;
+    private static final long WALLPAPER_FADE_MS = 400;
 
     private static final String PREFS = "focus";
     private static final String PREF_ZONE = "zone";
@@ -92,11 +93,14 @@ public class MainActivity extends Activity {
     private WallpaperFeeds feeds;
     private WallpaperPicker wallpaperPicker;
     private ImageView wallpaperView;
+    private ImageView previousWallpaperView;
     private View wallpaperScrim;
     private TextView wallpaperCaption;
     private ImageView wallpaperPill;
     // What's behind the home screen: the saved choice, or the one being previewed in the picker
     private Wallpaper shownWallpaper = Wallpaper.BLACK;
+    // The feed picture behind the home screen, or null for Black, a gradient or a feed still loading
+    private WallpaperFeeds.Image shownImage;
     // Feed pictures decoded so far, and feeds with a load in flight; main thread only
     private final Map<String, WallpaperFeeds.Image> feedImages = new HashMap<>();
     private final Set<String> loadingFeeds = new HashSet<>();
@@ -221,6 +225,8 @@ public class MainActivity extends Activity {
         wallpaperPill = findViewById(R.id.pill_wallpaper);
         dockBand = findViewById(R.id.dock_band);
         wallpaperView = findViewById(R.id.wallpaper);
+        previousWallpaperView = findViewById(R.id.wallpaper_previous);
+        wallpaperView.setImageDrawable(Wallpaper.BLACK.drawable());
         wallpaperScrim = findViewById(R.id.wallpaper_scrim);
         wallpaperScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{0xB3000000, 0x40000000, 0xE6000000}));
@@ -239,7 +245,7 @@ public class MainActivity extends Activity {
         profiles = Profile.all();
         gravatar = new Gravatar(this);
         profileEntries = new Gravatar.Entry[profiles.size()];
-        picker = new ProfilePicker(this, profiles.size(), this::pickProfile);
+        picker = new ProfilePicker(this, profiles.size(), this::pickProfile, this::showProfileWallpaper);
         for (int i = 0; i < profiles.size(); i++) {
             profileEntries[i] = gravatar.cached(profiles.get(i));
             picker.bind(i, profileEntries[i]);
@@ -900,20 +906,28 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Puts a wallpaper behind the home screen. A feed shows black until its picture has loaded. */
+    /** Fades a wallpaper in behind the home screen. A feed shows black until its picture has loaded. */
     private void showWallpaper(Wallpaper wallpaper) {
-        shownWallpaper = wallpaper;
         WallpaperFeeds.Image image = wallpaper.isFeed() ? feedImages.get(wallpaper.id) : null;
+        if (wallpaper == shownWallpaper && image == shownImage) {
+            return;
+        }
+        shownWallpaper = wallpaper;
+        shownImage = image;
+
+        // The new one fades in over whatever is showing now, mid-fade included
+        wallpaperView.animate().cancel();
+        previousWallpaperView.setImageDrawable(wallpaperView.getDrawable());
         if (image != null) {
             wallpaperView.setImageBitmap(image.bitmap);
         } else {
-            wallpaperView.setImageDrawable(wallpaper.drawable());
+            wallpaperView.setImageDrawable(wallpaper.isFeed() ? Wallpaper.BLACK.drawable() : wallpaper.drawable());
         }
-        // Black is the root's own background
-        boolean shown = image != null || (!wallpaper.isFeed() && wallpaper != Wallpaper.BLACK);
-        wallpaperView.setVisibility(shown ? View.VISIBLE : View.GONE);
+        wallpaperView.setAlpha(0f);
+        wallpaperView.animate().alpha(1f).setDuration(WALLPAPER_FADE_MS)
+                .withEndAction(() -> previousWallpaperView.setImageDrawable(null)).start();
         // Photos need the scrim to keep text readable; the gradients are dark already
-        wallpaperScrim.setVisibility(image != null ? View.VISIBLE : View.GONE);
+        wallpaperScrim.animate().alpha(image != null ? 1f : 0f).setDuration(WALLPAPER_FADE_MS).start();
         wallpaperCaption.setText(image != null ? image.caption : "");
         updateWallpaperCaption();
     }
@@ -1006,6 +1020,15 @@ public class MainActivity extends Activity {
         picker.show(activeProfile);
         updateClock();
         refreshProfiles();
+    }
+
+    /** Who's watching: the focused profile's wallpaper, until one is picked. */
+    private void showProfileWallpaper(int index) {
+        Wallpaper wallpaper = new AppLayout(this, profiles.get(index)).wallpaper();
+        showWallpaper(wallpaper);
+        if (wallpaper.isFeed()) {
+            loadFeed(wallpaper.id);
+        }
     }
 
     private void pickProfile(int index) {
