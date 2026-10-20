@@ -208,14 +208,24 @@ final class WallpaperFeeds {
             url = thumbnail.optString("source").replaceFirst("/\\d+px-", "/1920px-");
         }
 
-        JSONObject description = image.optJSONObject("description");
-        String what = description == null ? "" : description.optString("text").trim();
+        // The short Commons caption when there's an English one; else the first sentence of the long description
+        JSONObject structured = image.optJSONObject("structured");
+        JSONObject captions = structured == null ? null : structured.optJSONObject("captions");
+        String what = captions == null ? "" : captions.optString("en").trim();
+        if (what.isEmpty()) {
+            JSONObject description = image.optJSONObject("description");
+            what = description == null ? "" : description.optString("text").trim().replaceAll("\\s+", " ");
+            int end = what.indexOf(". ");
+            if (end > 0) {
+                what = what.substring(0, end);
+            }
+        }
         if (what.isEmpty()) {
             // "File:Some picture.jpg" → "Some picture"
             what = image.optString("title").replaceFirst("^File:", "").replaceFirst("\\.[A-Za-z]+$", "");
         }
         JSONObject artist = image.optJSONObject("artist");
-        String who = artist == null ? "" : artist.optString("text").trim();
+        String who = artist == null ? "" : artist.optString("text").trim().replaceFirst("\\.$", "");
         return new Source(url, who.isEmpty() ? what : what + " (© " + who + ")");
     }
 
