@@ -8,7 +8,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Grid of every app that isn't in the dock. */
+/** Grid of every app that isn't in the dock, or of the hidden apps. */
 final class TileAdapter extends RecyclerView.Adapter<TileHolder> {
     private final List<AppEntry> apps = new ArrayList<>();
     private final int cellWidth;
@@ -16,13 +16,15 @@ final class TileAdapter extends RecyclerView.Adapter<TileHolder> {
     private final int tileWidth;
     private final int tileHeight;
     private final int labelGap;
+    private final float cardAlpha;
 
-    TileAdapter(int cellWidth, int cellHeight, int tileWidth, int tileHeight, int labelGap) {
+    TileAdapter(int cellWidth, int cellHeight, int tileWidth, int tileHeight, int labelGap, float cardAlpha) {
         this.cellWidth = cellWidth;
         this.cellHeight = cellHeight;
         this.tileWidth = tileWidth;
         this.tileHeight = tileHeight;
         this.labelGap = labelGap;
+        this.cardAlpha = cardAlpha;
     }
 
     void setApps(List<AppEntry> newApps) {
@@ -40,6 +42,7 @@ final class TileAdapter extends RecyclerView.Adapter<TileHolder> {
     @Override
     public void onBindViewHolder(TileHolder holder, int position) {
         holder.bind(apps.get(position));
+        holder.card.setAlpha(cardAlpha);
     }
 
     @Override

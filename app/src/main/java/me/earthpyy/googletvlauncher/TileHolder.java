@@ -18,6 +18,8 @@ final class TileHolder extends RecyclerView.ViewHolder {
     private final ImageView icon;
     private final TextView fallbackLabel;
     private final TextView label;
+    private final float lift;
+    private CharSequence name = "";
 
     TileHolder(View itemView, int cellWidth, int cellHeight, int tileWidth, int tileHeight, int labelGap) {
         super(itemView);
@@ -39,6 +41,7 @@ final class TileHolder extends RecyclerView.ViewHolder {
         label.setMaxWidth(cellWidth);
         label.setTypeface(Fonts.outfit(itemView.getContext(), 400));
         fallbackLabel.setTypeface(Fonts.outfit(itemView.getContext(), 400));
+        lift = -14 * itemView.getResources().getDisplayMetrics().density;
     }
 
     void bind(AppEntry app) {
@@ -53,8 +56,16 @@ final class TileHolder extends RecyclerView.ViewHolder {
             icon.setImageDrawable(app.icon);
             fallbackLabel.setText(app.label);
         }
-        label.setText(app.label);
+        name = app.label;
+        label.setText(name);
+        card.setTranslationY(0);
         setFocused(false, false, true);
+    }
+
+    /** Dock reordering: the card rises and arrows replace the name. Show the label to see them. */
+    void setLifted(boolean lifted) {
+        card.setTranslationY(lifted ? lift : 0);
+        label.setText(lifted ? itemView.getContext().getString(R.string.move_hint) : name);
     }
 
     void setFocused(boolean focused, boolean showLabel, boolean immediate) {

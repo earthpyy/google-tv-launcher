@@ -19,6 +19,7 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewConfiguration;
 import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -35,8 +36,11 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -45,6 +49,9 @@ public class MainActivity extends Activity {
     private static final int ZONE_TOP = 0;
     private static final int ZONE_DOCK = 1;
     private static final int ZONE_GRID = 2;
+    // The hidden apps toggle under the grid, and the hidden apps grid under that
+    private static final int ZONE_HIDDEN_TOGGLE = 3;
+    private static final int ZONE_HIDDEN = 4;
     private static final int COLUMNS = 4;
 
     private static final String PREFS = "focus";
@@ -65,6 +72,7 @@ public class MainActivity extends Activity {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final List<AppEntry> dockApps = new ArrayList<>();
     private final List<AppEntry> gridApps = new ArrayList<>();
+    private final List<AppEntry> hiddenApps = new ArrayList<>();
     private final List<TileHolder> dockTiles = new ArrayList<>();
     private List<AppEntry> allApps = new ArrayList<>();
 
@@ -74,6 +82,7 @@ public class MainActivity extends Activity {
     private ProfilePicker picker;
     private ImageView profilePill;
     private int activeProfile;
+    private AppLayout layout;
     private boolean refreshingProfiles;
 
     private FrameLayout content;
@@ -90,6 +99,10 @@ public class MainActivity extends Activity {
     private LinearLayout dockRow;
     private RecyclerView grid;
     private TileAdapter gridAdapter;
+    private TextView hiddenToggle;
+    private RecyclerView hiddenGrid;
+    private TileAdapter hiddenAdapter;
+    private TileMenu menu;
     private SpringAnimation scrollSpring;
     private ValueAnimator glowAnimator;
 
@@ -103,18 +116,33 @@ public class MainActivity extends Activity {
     private int bandTop;
     private int bandHeight;
     private int gridTop;
+    private int hiddenTop;
     private int topInset;
 
     private int zone = ZONE_DOCK;
     private int topIndex;
     private int dockIndex;
     private int gridIndex;
+    private int hiddenIndex;
     private int glowColor;
+    private float scrollTarget;
+    private boolean hiddenOpen;
+    // OK is down on a tile: launch on release, or open the menu if it's held
+    private boolean pressPending;
+    // Dock reordering, and the order to go back to on cancel
+    private boolean moving;
+    private int moveFrom;
+    private final List<AppEntry> moveOriginal = new ArrayList<>();
     private boolean loaded;
     private boolean resetFocus;
     private boolean resumed;
     private long screenOffAt;
     private long wokeAt;
+
+    private final Runnable longPress = () -> {
+        pressPending = false;
+        openMenu();
+    };
 
     private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
         @Override
@@ -137,6 +165,8 @@ public class MainActivity extends Activity {
             long now = SystemClock.elapsedRealtime();
             if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
                 screenOffAt = now;
+                dismissEditing();
+                closeHidden();
                 return;
             }
             boolean longStandby = screenOffAt != 0 && now - screenOffAt >= PICKER_AFTER_STANDBY_MS;
@@ -168,6 +198,9 @@ public class MainActivity extends Activity {
         settingsPill = findViewById(R.id.pill_settings);
         dockRow = findViewById(R.id.dock_row);
         grid = findViewById(R.id.grid);
+        hiddenToggle = findViewById(R.id.hidden_toggle);
+        hiddenGrid = findViewById(R.id.hidden_grid);
+        hiddenToggle.setTypeface(Fonts.outfit(this, 400));
 
         greeting.setTypeface(Fonts.outfit(this, 300));
         clock.setTypeface(Fonts.outfit(this, 200));
@@ -182,12 +215,14 @@ public class MainActivity extends Activity {
             picker.bind(i, profileEntries[i]);
         }
         activeProfile = clamp(getSharedPreferences(PREFS, MODE_PRIVATE).getInt(PREF_PROFILE, 0), 0, profiles.size() - 1);
+        layout = new AppLayout(this, profiles.get(activeProfile));
         profilePill = findViewById(R.id.pill_profile);
         // The avatar is a photo; the icon pill tint would flatten it
         profilePill.setImageTintList(null);
 
         // Home Assistant pills come first, when configured
         home = new HomeControls(this, loader, mainHandler, this::highlight);
+        menu = new TileMenu(this, this::highlight, this::refocus);
         if (home.hasLight()) {
             pills.add(findViewById(R.id.pill_light));
         }
@@ -261,6 +296,7 @@ public class MainActivity extends Activity {
     protected void onPause() {
         resumed = false;
         home.onPause();
+        dismissEditing();
         saveFocusState();
         super.onPause();
     }
@@ -280,6 +316,8 @@ public class MainActivity extends Activity {
         if (picker.isOpen()) {
             return;
         }
+        dismissEditing();
+        closeHidden();
         // Pressing Home while already home jumps back to the dock
         boolean alreadyHome = hasWindowFocus()
                 && (intent.getFlags() & Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT) != Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT;
@@ -293,6 +331,14 @@ public class MainActivity extends Activity {
         int code = event.getKeyCode();
         if (!isNavigationKey(code)) {
             return super.dispatchKeyEvent(event);
+        }
+        if (event.getAction() == KeyEvent.ACTION_UP) {
+            // A tile launches on release, unless holding OK already opened its menu
+            if (pressPending && isSelectKey(code)) {
+                cancelPress();
+                activate();
+            }
+            return true;
         }
         if (event.getAction() != KeyEvent.ACTION_DOWN) {
             return true;
@@ -309,6 +355,21 @@ public class MainActivity extends Activity {
         if (home.isPanelOpen()) {
             home.onPanelKey(code, event.getRepeatCount());
             return true;
+        }
+        if (menu.isOpen()) {
+            menu.onKey(code, event.getRepeatCount());
+            return true;
+        }
+        if (moving) {
+            onMoveKey(code, event.getRepeatCount());
+            return true;
+        }
+        if (pressPending) {
+            if (isSelectKey(code)) {
+                return true;
+            }
+            // Another key while holding OK: neither launch nor menu
+            cancelPress();
         }
         switch (code) {
             case KeyEvent.KEYCODE_DPAD_UP:
@@ -329,11 +390,26 @@ public class MainActivity extends Activity {
                 }
                 break;
             default:
-                if (event.getRepeatCount() == 0) {
+                if (event.getRepeatCount() != 0) {
+                    break;
+                }
+                if (isTileZone()) {
+                    pressPending = true;
+                    mainHandler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout());
+                } else {
                     activate();
                 }
         }
         return true;
+    }
+
+    private boolean isTileZone() {
+        return zone == ZONE_DOCK || zone == ZONE_GRID || zone == ZONE_HIDDEN;
+    }
+
+    private void cancelPress() {
+        pressPending = false;
+        mainHandler.removeCallbacks(longPress);
     }
 
     private static boolean isNavigationKey(int code) {
@@ -370,12 +446,19 @@ public class MainActivity extends Activity {
                 setFocus(ZONE_DOCK, clamp(dockIndex + delta, 0, dockApps.size() - 1), false);
                 break;
             case ZONE_GRID:
-                int column = gridIndex % COLUMNS + delta;
-                int target = gridIndex + delta;
-                if (column >= 0 && column < COLUMNS && target < gridApps.size()) {
-                    setFocus(ZONE_GRID, target, false);
-                }
+                moveInGrid(ZONE_GRID, gridApps, gridIndex, delta);
                 break;
+            case ZONE_HIDDEN:
+                moveInGrid(ZONE_HIDDEN, hiddenApps, hiddenIndex, delta);
+                break;
+        }
+    }
+
+    private void moveInGrid(int gridZone, List<AppEntry> apps, int index, int delta) {
+        int column = index % COLUMNS + delta;
+        int target = index + delta;
+        if (column >= 0 && column < COLUMNS && target < apps.size()) {
+            setFocus(gridZone, target, false);
         }
     }
 
@@ -387,6 +470,8 @@ public class MainActivity extends Activity {
                         setFocus(ZONE_DOCK, dockIndex, false);
                     } else if (!gridApps.isEmpty()) {
                         setFocus(ZONE_GRID, clamp(gridIndex % COLUMNS, 0, gridApps.size() - 1), false);
+                    } else if (!hiddenApps.isEmpty()) {
+                        setFocus(ZONE_HIDDEN_TOGGLE, 0, false);
                     }
                 }
                 break;
@@ -395,6 +480,8 @@ public class MainActivity extends Activity {
                     setFocus(ZONE_TOP, topIndex, false);
                 } else if (!gridApps.isEmpty()) {
                     setFocus(ZONE_GRID, Math.min(dockIndex, gridApps.size() - 1), false);
+                } else if (!hiddenApps.isEmpty()) {
+                    setFocus(ZONE_HIDDEN_TOGGLE, 0, false);
                 }
                 break;
             case ZONE_GRID:
@@ -409,6 +496,31 @@ public class MainActivity extends Activity {
                     setFocus(ZONE_GRID, gridIndex - COLUMNS, false);
                 } else if ((row + 1) * COLUMNS < gridApps.size()) {
                     setFocus(ZONE_GRID, Math.min(gridIndex + COLUMNS, gridApps.size() - 1), false);
+                } else if (!hiddenApps.isEmpty()) {
+                    setFocus(ZONE_HIDDEN_TOGGLE, 0, false);
+                }
+                break;
+            case ZONE_HIDDEN_TOGGLE:
+                if (delta > 0) {
+                    if (hiddenOpen) {
+                        setFocus(ZONE_HIDDEN, clamp(hiddenIndex % COLUMNS, 0, hiddenApps.size() - 1), false);
+                    }
+                } else if (!gridApps.isEmpty()) {
+                    setFocus(ZONE_GRID, gridIndex, false);
+                } else if (!dockApps.isEmpty()) {
+                    setFocus(ZONE_DOCK, dockIndex, false);
+                } else {
+                    setFocus(ZONE_TOP, topIndex, false);
+                }
+                break;
+            case ZONE_HIDDEN:
+                int hiddenRow = hiddenIndex / COLUMNS;
+                if (delta < 0 && hiddenRow == 0) {
+                    setFocus(ZONE_HIDDEN_TOGGLE, 0, false);
+                } else if (delta < 0) {
+                    setFocus(ZONE_HIDDEN, hiddenIndex - COLUMNS, false);
+                } else if ((hiddenRow + 1) * COLUMNS < hiddenApps.size()) {
+                    setFocus(ZONE_HIDDEN, Math.min(hiddenIndex + COLUMNS, hiddenApps.size() - 1), false);
                 }
                 break;
         }
@@ -436,6 +548,13 @@ public class MainActivity extends Activity {
                 break;
             case ZONE_GRID:
                 launch(gridApps.get(gridIndex));
+                break;
+            case ZONE_HIDDEN_TOGGLE:
+                hiddenOpen = !hiddenOpen;
+                showApps(allApps);
+                break;
+            case ZONE_HIDDEN:
+                launch(hiddenApps.get(hiddenIndex));
                 break;
         }
     }
@@ -469,16 +588,21 @@ public class MainActivity extends Activity {
             topIndex = index;
         } else if (newZone == ZONE_DOCK) {
             dockIndex = index;
-        } else {
+        } else if (newZone == ZONE_GRID) {
             gridIndex = index;
+        } else if (newZone == ZONE_HIDDEN) {
+            hiddenIndex = index;
         }
         TileHolder current = focusedTile();
         if (previous != null && previous != current) {
             previous.setFocused(false, false, immediate);
         }
         if (current != null) {
-            current.setFocused(true, zone == ZONE_GRID, immediate);
+            current.setFocused(true, zone != ZONE_DOCK || moving, immediate);
         }
+        boolean toggleSelected = zone == ZONE_HIDDEN_TOGGLE;
+        hiddenToggle.setSelected(toggleSelected);
+        hiddenToggle.animate().scaleX(toggleSelected ? 1.06f : 1f).scaleY(toggleSelected ? 1.06f : 1f).setDuration(150).start();
 
         for (int i = 0; i < pills.size(); i++) {
             boolean selected = zone == ZONE_TOP && i == topIndex;
@@ -490,8 +614,41 @@ public class MainActivity extends Activity {
         if (zone == ZONE_DOCK) {
             updateGlow(immediate);
         }
+        glass.setLifted(moving);
         moveGlass(current, immediate);
-        scrollTo(zone == ZONE_GRID ? -(gridTop + (gridIndex / COLUMNS) * rowHeight - topInset) : 0, immediate);
+        scrollTo(scrollFor(zone), immediate);
+    }
+
+    /** Redraws the current focus, after the menu closes or a dock app moves. */
+    private void refocus() {
+        setFocus(zone, focusIndex(), false);
+    }
+
+    private int focusIndex() {
+        switch (zone) {
+            case ZONE_TOP:
+                return topIndex;
+            case ZONE_DOCK:
+                return dockIndex;
+            case ZONE_HIDDEN:
+                return hiddenIndex;
+            default:
+                return gridIndex;
+        }
+    }
+
+    private float scrollFor(int focusZone) {
+        switch (focusZone) {
+            case ZONE_GRID:
+                return -(gridTop + (gridIndex / COLUMNS) * rowHeight - topInset);
+            case ZONE_HIDDEN_TOGGLE:
+                // Keeps the last grid row in view above the toggle
+                return -(gridTop + (Math.max(0, gridApps.size() - 1) / COLUMNS) * rowHeight - topInset);
+            case ZONE_HIDDEN:
+                return -(hiddenTop + (hiddenIndex / COLUMNS) * rowHeight - topInset);
+            default:
+                return 0;
+        }
     }
 
     private TileHolder focusedTile() {
@@ -500,6 +657,9 @@ public class MainActivity extends Activity {
         }
         if (zone == ZONE_GRID) {
             return (TileHolder) grid.findViewHolderForAdapterPosition(gridIndex);
+        }
+        if (zone == ZONE_HIDDEN) {
+            return (TileHolder) hiddenGrid.findViewHolderForAdapterPosition(hiddenIndex);
         }
         return null;
     }
@@ -537,6 +697,7 @@ public class MainActivity extends Activity {
     }
 
     private void scrollTo(float target, boolean immediate) {
+        scrollTarget = target;
         if (immediate) {
             scrollSpring.cancel();
             content.setTranslationY(target);
@@ -619,8 +780,21 @@ public class MainActivity extends Activity {
         });
         grid.setItemAnimator(null);
         int labelGap = Math.round(tileHeight * (TileHolder.FOCUS_SCALE - 1) / 2 + 10 * density);
-        gridAdapter = new TileAdapter(cellWidth, rowHeight, tileWidth, tileHeight, labelGap);
+        gridAdapter = new TileAdapter(cellWidth, rowHeight, tileWidth, tileHeight, labelGap, 1f);
         grid.setAdapter(gridAdapter);
+
+        FrameLayout.LayoutParams hiddenParams = (FrameLayout.LayoutParams) hiddenGrid.getLayoutParams();
+        hiddenParams.leftMargin = side - gap / 2;
+        hiddenParams.width = cellWidth * COLUMNS;
+        hiddenGrid.setLayoutManager(new GridLayoutManager(this, COLUMNS) {
+            @Override
+            public boolean canScrollVertically() {
+                return false;
+            }
+        });
+        hiddenGrid.setItemAnimator(null);
+        hiddenAdapter = new TileAdapter(cellWidth, rowHeight, tileWidth, tileHeight, labelGap, 0.45f);
+        hiddenGrid.setAdapter(hiddenAdapter);
 
         // A circle squashed vertically, so the radial fade never hits the view edges
         glowDrawable = new GradientDrawable();
@@ -677,7 +851,10 @@ public class MainActivity extends Activity {
 
     /** Swaps in another profile's home screen; focus starts over on its first dock app. */
     private void switchProfile(int index) {
+        dismissEditing();
         activeProfile = index;
+        layout = new AppLayout(this, profiles.get(index));
+        hiddenOpen = false;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(PREF_PROFILE, index).apply();
         setupWallpaper();
         showActiveProfile();
@@ -755,58 +932,95 @@ public class MainActivity extends Activity {
         allApps = apps;
         String focusedDock = packageAt(dockApps, dockIndex);
         String focusedGrid = packageAt(gridApps, gridIndex);
+        String focusedHidden = packageAt(hiddenApps, hiddenIndex);
         if (resetFocus) {
             resetFocus = false;
             zone = ZONE_DOCK;
             dockIndex = 0;
             gridIndex = 0;
+            hiddenIndex = 0;
             focusedDock = null;
             focusedGrid = null;
+            focusedHidden = null;
         } else if (!loaded) {
             SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
             focusedDock = prefs.getString(PREF_DOCK, null);
             focusedGrid = prefs.getString(PREF_GRID, null);
         }
 
-        Profile profile = profiles.get(activeProfile);
-        List<String> dockPackages = profile.dockPackages;
-        // Play Store and Settings have their own pills
-        Set<String> hidden = new HashSet<>(profile.hiddenPackages);
-        hidden.add("com.android.vending");
-        hidden.add("com.android.tv.settings");
-
+        Map<String, AppEntry> byPackage = new HashMap<>();
+        for (AppEntry app : apps) {
+            byPackage.put(app.packageName, app);
+        }
+        // Apps that aren't installed are skipped, but the layout remembers them
         dockApps.clear();
-        for (String packageName : dockPackages) {
-            for (AppEntry app : apps) {
-                if (app.packageName.equals(packageName)) {
-                    dockApps.add(app);
-                }
+        for (String packageName : layout.dock()) {
+            AppEntry app = byPackage.get(packageName);
+            if (app != null && dockApps.size() < AppLayout.DOCK_SIZE) {
+                dockApps.add(app);
             }
         }
         gridApps.clear();
+        hiddenApps.clear();
         for (AppEntry app : apps) {
-            if (!dockPackages.contains(app.packageName) && !hidden.contains(app.packageName)) {
-                gridApps.add(app);
+            // Play Store and Settings have their own pills
+            if (dockApps.contains(app) || app.packageName.equals("com.android.vending")
+                    || app.packageName.equals("com.android.tv.settings")) {
+                continue;
             }
+            (layout.isHidden(app.packageName) ? hiddenApps : gridApps).add(app);
+        }
+        if (hiddenApps.isEmpty()) {
+            hiddenOpen = false;
         }
 
         buildDock();
         int rows = Math.max(1, (gridApps.size() + COLUMNS - 1) / COLUMNS);
         grid.getLayoutParams().height = rows * rowHeight;
-        content.getLayoutParams().height = gridTop + rows * rowHeight + screenHeight;
         gridAdapter.setApps(gridApps);
+        int bottom = gridTop + rows * rowHeight;
+        if (hiddenApps.isEmpty()) {
+            hiddenToggle.setVisibility(View.GONE);
+        } else {
+            hiddenToggle.setText(getString(R.string.hidden_apps, hiddenApps.size()));
+            ((FrameLayout.LayoutParams) hiddenToggle.getLayoutParams()).topMargin = bottom;
+            hiddenToggle.setVisibility(View.VISIBLE);
+            hiddenTop = bottom + hiddenToggle.getLayoutParams().height + Math.round(40 * getResources().getDisplayMetrics().density);
+            bottom = hiddenTop;
+        }
+        if (hiddenOpen) {
+            int hiddenRows = (hiddenApps.size() + COLUMNS - 1) / COLUMNS;
+            FrameLayout.LayoutParams hiddenParams = (FrameLayout.LayoutParams) hiddenGrid.getLayoutParams();
+            hiddenParams.topMargin = hiddenTop;
+            hiddenParams.height = hiddenRows * rowHeight;
+            hiddenAdapter.setApps(hiddenApps);
+            hiddenGrid.setVisibility(View.VISIBLE);
+            bottom += hiddenRows * rowHeight;
+        } else {
+            hiddenAdapter.setApps(Collections.emptyList());
+            hiddenGrid.setVisibility(View.GONE);
+        }
+        content.getLayoutParams().height = bottom + screenHeight;
         content.requestLayout();
 
         dockIndex = clamp(indexOf(dockApps, focusedDock, dockIndex), 0, Math.max(0, dockApps.size() - 1));
         gridIndex = clamp(indexOf(gridApps, focusedGrid, gridIndex), 0, Math.max(0, gridApps.size() - 1));
+        hiddenIndex = clamp(indexOf(hiddenApps, focusedHidden, hiddenIndex), 0, Math.max(0, hiddenApps.size() - 1));
+        // Hidden apps closed, or the last one unhidden: back to the toggle, or failing that the last grid app
+        if ((zone == ZONE_HIDDEN && !hiddenOpen) || (zone == ZONE_HIDDEN_TOGGLE && hiddenApps.isEmpty())) {
+            zone = hiddenApps.isEmpty() ? ZONE_GRID : ZONE_HIDDEN_TOGGLE;
+            if (hiddenApps.isEmpty()) {
+                gridIndex = Math.max(0, gridApps.size() - 1);
+            }
+        }
         if ((zone == ZONE_DOCK && dockApps.isEmpty()) || (zone == ZONE_GRID && gridApps.isEmpty())) {
-            zone = dockApps.isEmpty() ? (gridApps.isEmpty() ? ZONE_TOP : ZONE_GRID) : ZONE_DOCK;
+            zone = !dockApps.isEmpty() ? ZONE_DOCK : !gridApps.isEmpty() ? ZONE_GRID
+                    : !hiddenApps.isEmpty() ? ZONE_HIDDEN_TOGGLE : ZONE_TOP;
         }
         loaded = true;
 
         afterLayout(() -> {
-            int index = zone == ZONE_TOP ? topIndex : zone == ZONE_DOCK ? dockIndex : gridIndex;
-            setFocus(zone, index, true);
+            setFocus(zone, focusIndex(), true);
             if (zone != ZONE_DOCK) {
                 updateGlow(true);
             }
@@ -817,12 +1031,156 @@ public class MainActivity extends Activity {
         dockRow.removeAllViews();
         dockTiles.clear();
         LayoutInflater inflater = LayoutInflater.from(this);
+        if (dockApps.isEmpty()) {
+            View placeholder = inflater.inflate(R.layout.item_dock_placeholder, dockRow, false);
+            placeholder.setLayoutParams(new ViewGroup.LayoutParams(cellWidth, tileHeight));
+            View card = placeholder.findViewById(R.id.card);
+            card.getLayoutParams().width = tileWidth;
+            card.getLayoutParams().height = tileHeight;
+            ((TextView) placeholder.findViewById(R.id.plus)).setTypeface(Fonts.outfit(this, 200));
+            ((TextView) placeholder.findViewById(R.id.hint)).setTypeface(Fonts.outfit(this, 400));
+            dockRow.addView(placeholder);
+            return;
+        }
         for (AppEntry app : dockApps) {
             TileHolder tile = new TileHolder(inflater.inflate(R.layout.item_tile, dockRow, false),
                     cellWidth, tileHeight, tileWidth, tileHeight, 0);
             tile.bind(app);
             dockRow.addView(tile.itemView);
             dockTiles.add(tile);
+        }
+    }
+
+    // Arranging apps: a long press on a tile opens its menu
+
+    private void openMenu() {
+        TileHolder tile = focusedTile();
+        if (tile == null) {
+            return;
+        }
+        List<TileMenu.Item> items = new ArrayList<>();
+        switch (zone) {
+            case ZONE_DOCK: {
+                AppEntry app = dockApps.get(dockIndex);
+                if (dockApps.size() > 1) {
+                    items.add(new TileMenu.Item(getString(R.string.menu_move), true, this::startMove));
+                }
+                items.add(new TileMenu.Item(getString(R.string.menu_remove_from_dock), true, () -> {
+                    layout.removeFromDock(app.packageName, installedPackages());
+                    showApps(allApps);
+                }));
+                break;
+            }
+            case ZONE_GRID: {
+                AppEntry app = gridApps.get(gridIndex);
+                items.add(new TileMenu.Item(getString(R.string.menu_add_to_dock), dockApps.size() < AppLayout.DOCK_SIZE, () -> {
+                    layout.addToDock(app.packageName, installedPackages());
+                    showApps(allApps);
+                }));
+                items.add(new TileMenu.Item(getString(R.string.menu_hide), true, () -> {
+                    layout.hide(app.packageName);
+                    showApps(allApps);
+                }));
+                break;
+            }
+            case ZONE_HIDDEN: {
+                AppEntry app = hiddenApps.get(hiddenIndex);
+                items.add(new TileMenu.Item(getString(R.string.menu_unhide), true, () -> {
+                    layout.unhide(app.packageName);
+                    showApps(allApps);
+                }));
+                break;
+            }
+            default:
+                return;
+        }
+        menu.show(tile.card, content, items, -scrollTarget, -scrollTarget + screenHeight);
+    }
+
+    private Set<String> installedPackages() {
+        Set<String> installed = new HashSet<>();
+        for (AppEntry app : allApps) {
+            installed.add(app.packageName);
+        }
+        return installed;
+    }
+
+    private void startMove() {
+        moving = true;
+        moveFrom = dockIndex;
+        moveOriginal.clear();
+        moveOriginal.addAll(dockApps);
+        dockTiles.get(dockIndex).setLifted(true);
+        refocus();
+    }
+
+    /** Keys while moving a dock app. Left/Right swap it with its neighbour, OK keeps the order, Back cancels. */
+    private void onMoveKey(int code, int repeatCount) {
+        switch (code) {
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                swapDockApp(-1);
+                break;
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                swapDockApp(1);
+                break;
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                break;
+            case KeyEvent.KEYCODE_BACK:
+                cancelMove();
+                break;
+            default:
+                if (repeatCount == 0) {
+                    moving = false;
+                    dockTiles.get(dockIndex).setLifted(false);
+                    List<String> order = new ArrayList<>();
+                    for (AppEntry app : dockApps) {
+                        order.add(app.packageName);
+                    }
+                    layout.reorderDock(order);
+                    refocus();
+                }
+        }
+    }
+
+    private void swapDockApp(int delta) {
+        int target = dockIndex + delta;
+        if (target < 0 || target >= dockApps.size()) {
+            return;
+        }
+        Collections.swap(dockApps, dockIndex, target);
+        dockTiles.get(dockIndex).bind(dockApps.get(dockIndex));
+        dockTiles.get(target).bind(dockApps.get(target));
+        dockTiles.get(target).setLifted(true);
+        setFocus(ZONE_DOCK, target, false);
+    }
+
+    private void cancelMove() {
+        if (!moving) {
+            return;
+        }
+        moving = false;
+        dockApps.clear();
+        dockApps.addAll(moveOriginal);
+        for (int i = 0; i < dockTiles.size(); i++) {
+            dockTiles.get(i).bind(dockApps.get(i));
+        }
+        setFocus(ZONE_DOCK, moveFrom, false);
+    }
+
+    /** Closes the tile menu, cancels a dock move and forgets a held OK; for Home, standby and leaving. */
+    private void dismissEditing() {
+        cancelPress();
+        menu.close();
+        cancelMove();
+    }
+
+    private void closeHidden() {
+        if (hiddenOpen) {
+            hiddenOpen = false;
+            if (loaded) {
+                showApps(allApps);
+            }
         }
     }
 
@@ -873,7 +1231,8 @@ public class MainActivity extends Activity {
 
     private void restoreFocusState() {
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        zone = prefs.getInt(PREF_ZONE, ZONE_DOCK);
+        // The hidden apps start out closed
+        zone = Math.min(prefs.getInt(PREF_ZONE, ZONE_DOCK), ZONE_GRID);
         topIndex = clamp(prefs.getInt(PREF_TOP, 0), 0, pills.size() - 1);
     }
 

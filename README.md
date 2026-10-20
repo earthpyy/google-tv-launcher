@@ -9,7 +9,7 @@ Built on top of [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv).
 ## What you get
 
 - 🖤 **Pitch black and quiet.** One glass focus highlight, a big clock in [Outfit](https://github.com/Outfitio/Outfit-Fonts) (SIL OFL), no blur, no video, no background polling.
-- 📺 **A four-app dock** for your favourites, with a 4-column grid of everything else below it.
+- 📺 **A four-app dock** for your favourites, with a 4-column grid of everything else below it. Hold OK on any app to dock, move or hide it.
 - 👋 **Profiles.** Each person gets their own dock, hidden apps and wallpaper, with a "Who's watching?" picker and their [Gravatar](https://gravatar.com) name and picture.
 - 🏠 **Home Assistant, optional.** Weather, air quality and indoor climate at a glance, plus one-press light and AC controls.
 - 🎮 **Remote-friendly navigation** that never wraps or jumps somewhere unexpected.
@@ -70,8 +70,6 @@ Per profile (`PROFILE_n_…`):
 
 | Setting | What it does |
 |---|---|
-| `PROFILE_n_DOCK_PACKAGES` | Dock apps, comma-separated, left to right. Find package names with `./scripts/tv.sh shell pm list packages -3`. |
-| `PROFILE_n_HIDDEN_PACKAGES` | Apps to hide from the grid. Play Store and Settings are always hidden; they have their own buttons. |
 | `PROFILE_n_WALLPAPER_DRAWABLE` | Put an image in `app/src/main/res/drawable/` (e.g. `wallpaper.jpg`) and set this to its name without the extension (`wallpaper`). Empty means pitch black. A dark gradient keeps the text readable. |
 
 With two or more profiles:
@@ -80,6 +78,22 @@ With two or more profiles:
 - **The profile button** (your avatar, left of Play Store) switches to the next profile.
 
 Switching profiles puts focus on the first dock app.
+
+### Dock and hidden apps
+
+These are set on the TV, not in `.env`, and each profile has its own. A new profile starts with an empty dock (a dashed placeholder) and nothing hidden.
+
+Hold OK on any app for about half a second to open its menu:
+
+| App in | Menu |
+|---|---|
+| Grid | **Add to dock** (up to 4 apps), **Hide** |
+| Dock | **Move** (Left/Right to shift it, OK to keep, Back or Home to cancel), **Remove from dock** |
+| Hidden apps | **Unhide** |
+
+While any app is hidden, a small **Hidden apps** button sits under the grid. OK on it shows them, dimmed, underneath. They close again on Home, on a profile switch and in standby. Play Store and Settings never show in the grid; they have their own buttons.
+
+The layout lives in the launcher's app data, so uninstalling the launcher (or a signature change) resets it. An uninstalled app keeps its dock place or hidden state, and gets it back if reinstalled.
 
 ### Home Assistant
 
@@ -96,6 +110,7 @@ Leave any entity empty to hide that part; an unavailable entity shows `–`. Sta
 - Up/Down move exactly one row. Up from the dock goes to the top bar; Down goes into the grid.
 - Left/Right stop at the ends of a row. They never wrap or fall through.
 - Back returns to the dock, and so does pressing Home while already home.
+- Apps open when you let go of OK; holding it opens the app's menu instead.
 - The last focused tile is remembered when you come back from an app.
 
 ## Scripts

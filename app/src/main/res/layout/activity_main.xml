@@ -145,6 +145,22 @@
             android:clipToPadding="false"
             android:overScrollMode="never" />
 
+        <!-- Below the grid while any app is hidden; opens the hidden apps grid under it -->
+        <TextView
+            android:id="@+id/hidden_toggle"
+            style="@style/SmallPill"
+            android:layout_gravity="top|center_horizontal"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/hidden_grid"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:visibility="gone" />
+
         <!-- AC panel, placed under the AC pill when opened; the glass highlight marks its focused row -->
         <LinearLayout
             android:id="@+id/ac_panel"
@@ -218,6 +234,16 @@
                     android:text="@string/arrow_right" />
             </LinearLayout>
         </LinearLayout>
+
+        <!-- Long-press menu of an app tile, placed next to it when opened -->
+        <LinearLayout
+            android:id="@+id/tile_menu"
+            android:layout_width="260dp"
+            android:layout_height="wrap_content"
+            android:background="@drawable/panel_background"
+            android:orientation="vertical"
+            android:padding="8dp"
+            android:visibility="invisible" />
 
         <me.earthpyy.googletvlauncher.GlassView
             android:id="@+id/glass"

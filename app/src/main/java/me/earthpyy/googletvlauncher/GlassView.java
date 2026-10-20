@@ -77,6 +77,12 @@ public final class GlassView extends View {
         springH.animateToFinalPosition(height);
     }
 
+    /** A brighter edge while a dock app is being moved. */
+    void setLifted(boolean lifted) {
+        stroke.setColor(lifted ? 0xE6FFFFFF : 0x66FFFFFF);
+        invalidate();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         if (boxWidth <= 0) {

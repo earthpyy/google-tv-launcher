@@ -3,7 +3,7 @@
 source "$(dirname "$0")/lib.sh"
 tv_connect
 : "${KEYSTORE_FILE:?KEYSTORE_FILE is not set (see .env.example)}"
-# Everything else in .env (dock apps, Home Assistant) is already exported by lib.sh and read by Gradle
+# Everything else in .env (profiles, Home Assistant) is already exported by lib.sh and read by Gradle
 export ANDROID_HOME KEYSTORE_FILE KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD
 
 PKG=me.earthpyy.googletvlauncher

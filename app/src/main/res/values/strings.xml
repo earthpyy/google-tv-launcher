@@ -19,5 +19,14 @@
     <string name="arrow_right">›</string>
     <string name="hass_unreachable">Couldn\'t reach Home Assistant</string>
     <string name="hass_auth_failed">Home Assistant token rejected</string>
+    <string name="dock_plus">+</string>
+    <string name="dock_hint">Long-press any app to add it here</string>
+    <string name="move_hint">◀  ▶</string>
+    <string name="hidden_apps">Hidden apps (%1$d)</string>
+    <string name="menu_add_to_dock">Add to dock</string>
+    <string name="menu_hide">Hide</string>
+    <string name="menu_move">Move</string>
+    <string name="menu_remove_from_dock">Remove from dock</string>
+    <string name="menu_unhide">Unhide</string>
     <string name="launch_failed">Can\'t open %1$s</string>
 </resources>

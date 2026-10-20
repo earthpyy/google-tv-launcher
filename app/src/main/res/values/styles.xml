@@ -27,6 +27,15 @@
         <item name="android:tint">@color/pill_content</item>
     </style>
 
+    <!-- Smaller, quieter Pill for the hidden apps toggle under the grid -->
+    <style name="SmallPill" parent="Pill">
+        <item name="android:layout_height">36dp</item>
+        <item name="android:layout_marginStart">0dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
     <!-- AC panel rows -->
     <style name="PanelRow">
         <item name="android:layout_width">match_parent</item>
@@ -61,5 +70,17 @@
         <item name="android:importantForAccessibility">no</item>
         <item name="android:textColor">#FFFFFFFF</item>
         <item name="android:textSize">22sp</item>
+    </style>
+
+    <!-- Long-press menu items -->
+    <style name="MenuRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">52dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:textColor">#FFFFFFFF</item>
+        <item name="android:textSize">18sp</item>
     </style>
 </resources>
