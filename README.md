@@ -8,10 +8,13 @@ Built on top of [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv).
 
 ## What you get
 
-- 🖤 **Pitch black and quiet.** One glass focus highlight, a big clock in [Outfit](https://github.com/Outfitio/Outfit-Fonts) (SIL OFL), no blur, no video, no background polling.
+- 🖤 **Calm and quiet.** Pitch black by default, one glass focus highlight, a big clock in [Outfit](https://github.com/Outfitio/Outfit-Fonts) (SIL OFL), no blur, no video, no background polling.
+- 🖼️ **Wallpapers, picked on the TV.** Black, six dark gradients, or a new picture every day from Bing, NASA or Wikimedia, previewed live before you keep it.
 - 📺 **A four-app dock** for your favourites, with a 4-column grid of everything else below it. Hold OK on any app to dock, move or hide it.
-- 👋 **Profiles.** Each person gets their own dock, hidden apps and wallpaper, with a "Who's watching?" picker and their [Gravatar](https://gravatar.com) name and picture.
+- 👋 **Profiles.** Each person gets their own dock, hidden apps and wallpaper, with a "Who's watching?" picker that shows each person's wallpaper as you move, and their [Gravatar](https://gravatar.com) name and picture.
 - 🏠 **Home Assistant, optional.** Weather, air quality and indoor climate at a glance, plus one-press light and AC controls.
+- ⚽ **Football, optional.** The next kick-off, live score or latest result for each person's favourite teams, from [football-data.org](https://www.football-data.org).
+- 🕰️ **A clock screensaver** that drifts every minute to avoid burn-in.
 - 🎮 **Remote-friendly navigation** that never wraps or jumps somewhere unexpected.
 
 ## Quick start
