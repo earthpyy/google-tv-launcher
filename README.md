@@ -1,19 +1,38 @@
 # google-tv-launcher
 
-Custom made Google TV Launcher based on [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv).
+A calm, Apple TV style home screen for the **Chromecast with Google TV (4K, Android 14)**. No ads, no recommendations, no autoplaying trailers: just your apps, the time, and (if you like) your home.
 
-An Apple TV style home screen for a **Chromecast with Google TV (4K, Android 14)**: pitch black background, a four-app dock, a 4-column app grid below it, one glass focus highlight, a clock in [Outfit](https://github.com/Outfitio/Outfit-Fonts) (SIL OFL), and optional [Home Assistant](https://www.home-assistant.io) controls. No blur, no video, no background polling.
+![The home screen: greeting, clock, date, Home Assistant glance line, light and AC pills, profile, Play Store and Settings buttons, and a dock of four apps](docs/home.png)
 
-## Setup
+Built on top of [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv).
 
-Requirements: [mise](https://mise.jdx.dev) (pins Java 17) and the Android SDK (platform-tools, platform 34).
+## What you get
+
+- 🖤 **Pitch black and quiet.** One glass focus highlight, a big clock in [Outfit](https://github.com/Outfitio/Outfit-Fonts) (SIL OFL), no blur, no video, no background polling.
+- 📺 **A four-app dock** for your favourites, with a 4-column grid of everything else below it.
+- 👋 **Profiles.** Each person gets their own dock, hidden apps and wallpaper, with a "Who's watching?" picker and their [Gravatar](https://gravatar.com) name and picture.
+- 🏠 **Home Assistant, optional.** Weather, air quality and indoor climate at a glance, plus one-press light and AC controls.
+- 🎮 **Remote-friendly navigation** that never wraps or jumps somewhere unexpected.
+
+## Quick start
+
+You'll need [mise](https://mise.jdx.dev) (it pins Java 17) and the Android SDK (platform-tools, platform 34).
 
 ```sh
-cp .env.example .env   # then fill in the values
+cp .env.example .env   # fill in your values
 mise install
+./scripts/pair.sh      # pair with the TV once (see below)
+./scripts/build-install.sh
 ```
 
-`.env` holds the TV address, the release keystore path and passwords, the profiles and the Home Assistant settings. It is gitignored and never committed. The keystore lives outside the repo in `~/.keystores/googletvlauncher.jks`, so copy that file and `.env` to any other machine you build on (otherwise reinstalling fails with a signature mismatch).
+That's it: the launcher is built, installed, set as the home app and as the screensaver.
+
+<details>
+<summary>About <code>.env</code> and the signing keystore</summary>
+
+`.env` holds the TV address, the release keystore path and passwords, the profiles and the Home Assistant settings. It is gitignored and never committed.
+
+The keystore lives outside the repo in `~/.keystores/googletvlauncher.jks`. Copy that file and `.env` to any other machine you build on, otherwise reinstalling fails with a signature mismatch.
 
 To create a keystore from scratch:
 
@@ -22,15 +41,62 @@ keytool -genkeypair -keystore ~/.keystores/googletvlauncher.jks -alias googletvl
   -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=googletvlauncher"
 ```
 
+</details>
+
 ## Connecting to the TV
 
-The TV uses **Wireless debugging** (paired over TLS). Port 5555 is never opened.
+The TV uses **Wireless debugging** (paired over TLS), so port 5555 is never opened.
 
-1. On the TV: **Settings → System → Developer options → Wireless debugging**, make sure it is **on**. Android turns it off whenever Wi-Fi drops.
-2. Choose **Pair device with pairing code**. Leave that screen open.
-3. On the Mac: `./scripts/pair.sh`, enter the port shown under the code (`192.168.10.210:<port>`) and the 6-digit code.
+1. On the TV, go to **Settings → System → Developer options → Wireless debugging** and make sure it's **on**. Android turns it off whenever Wi-Fi drops, so check here first if things stop working.
+2. Choose **Pair device with pairing code** and leave that screen open.
+3. On your Mac, run `./scripts/pair.sh` and enter the port shown under the code (`<tv-ip>:<port>`) and the 6-digit code.
 
-If `adb` says "No route to host" even though the TV is reachable, macOS Local Network privacy is blocking it: allow your terminal app in **System Settings → Privacy & Security → Local Network** and restart the terminal. If a connect port looks stale, run `adb kill-server` and pair again.
+**Troubleshooting**
+
+- `adb` says "No route to host" even though the TV is reachable? macOS Local Network privacy is blocking it. Allow your terminal app in **System Settings → Privacy & Security → Local Network**, then restart the terminal.
+- Connect port looks stale? Run `adb kill-server` and pair again.
+
+## Making it yours
+
+Everything is set in `.env` (see [`.env.example`](.env.example)), then run `./scripts/build-install.sh`. Values are baked into the APK at build time.
+
+### Profiles
+
+Add one block per person: `PROFILE_1_EMAIL`, `PROFILE_2_EMAIL`, and so on. They're read in order until the first missing one, and at least one is required (the build fails otherwise).
+
+Names and avatars come from each email's [Gravatar](https://gravatar.com) and are cached on the TV for a day. Until they load, or if there's no Gravatar, you'll see a grey silhouette and the part of the email before `@`. The greeting becomes "Good evening, <name>".
+
+Per profile (`PROFILE_n_…`):
+
+| Setting | What it does |
+|---|---|
+| `PROFILE_n_DOCK_PACKAGES` | Dock apps, comma-separated, left to right. Find package names with `./scripts/tv.sh shell pm list packages -3`. |
+| `PROFILE_n_HIDDEN_PACKAGES` | Apps to hide from the grid. Play Store and Settings are always hidden; they have their own buttons. |
+| `PROFILE_n_WALLPAPER_DRAWABLE` | Put an image in `app/src/main/res/drawable/` (e.g. `wallpaper.jpg`) and set this to its name without the extension (`wallpaper`). Empty means pitch black. A dark gradient keeps the text readable. |
+
+With two or more profiles:
+
+- **Who's watching?** shows up on a cold start, and when the TV wakes from at least 5 minutes of standby with the home screen in front. Left/Right to pick, OK to choose. Back does nothing.
+- **The profile button** (your avatar, left of Play Store) switches to the next profile.
+
+Switching profiles puts focus on the first dock app.
+
+### Home Assistant
+
+Set `HASS_URL` and a long-lived access token in `HASS_TOKEN` (HA profile → Security). Without both, none of this appears.
+
+- **Glance line** under the date: outside weather from `HASS_WEATHER` (icon, temperature and condition) and `HASS_AQI` (amber above 100, red above 150), then inside temperature and humidity from `HASS_INSIDE_TEMPERATURE` and `HASS_INSIDE_HUMIDITY`. Icons are [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0).
+- **Lights button** (`HASS_LIGHT`, any light or switch): OK turns it on or off.
+- **AC button** (`HASS_CLIMATE`): OK opens a panel. Up/Down pick Power, Temperature or Fan. OK toggles power. Left/Right change the temperature (`HASS_CLIMATE_MIN_TEMP` to `HASS_CLIMATE_MAX_TEMP`) and fan speed (`HASS_CLIMATE_FAN_MODES`, e.g. `auto,low,mid:Medium,high`). Changes are sent 500 ms after your last press. Back closes it.
+
+Leave any entity empty to hide that part; an unavailable entity shows `–`. States are fetched when the home screen appears and after each action, never in the background. If Home Assistant can't be reached, the last values stay on screen, dimmed.
+
+## Getting around
+
+- Up/Down move exactly one row. Up from the dock goes to the top bar; Down goes into the grid.
+- Left/Right stop at the ends of a row. They never wrap or fall through.
+- Back returns to the dock, and so does pressing Home while already home.
+- The last focused tile is remembered when you come back from an app.
 
 ## Scripts
 
@@ -38,17 +104,17 @@ If `adb` says "No route to host" even though the TV is reachable, macOS Local Ne
 |---|---|
 | `scripts/pair.sh` | Pair and connect over Wireless debugging |
 | `scripts/tv.sh` | Run any adb command against the TV (finds the current connect port for you) |
-| `scripts/backup.sh` | Save package lists, `getprop` and all settings to `backup/<timestamp>/` (gitignored) |
 | `scripts/build-install.sh` | Build the signed release APK, install it, set it as home and as the screensaver |
+| `scripts/backup.sh` | Save package lists, `getprop` and all settings to `backup/<timestamp>/` (gitignored) |
 | `scripts/restore.sh` | Re-enable everything in `debloat-list.txt` and `launcher-swap-list.txt` and restore the stock home and ambient mode |
 
 ## What was changed on the TV
 
-- **Uninstalled** (reinstall from the Play Store): Disney+ Hotstar, DAZN, Twitch, Viu, Doonung.
+- **Uninstalled** (reinstall any of them from the Play Store): Disney+ Hotstar, DAZN, Twitch, Viu, Doonung.
 - **Disabled**: everything in [`debloat-list.txt`](debloat-list.txt) (Google TV/Play Movies, Play Games, ambient mode, feedback/telemetry, print spooler, TalkBack, calendar) and [`launcher-swap-list.txt`](launcher-swap-list.txt) (stock launcher, setup wizard).
 - **Kept**: Google Assistant, Cast, firmware updates, remote/TV control setup (`tv.axel`), and every system module.
 
-### Re-enabling an app
+Changed your mind about an app? Re-enable it with:
 
 ```sh
 ./scripts/tv.sh shell pm enable <package>
@@ -56,7 +122,8 @@ If `adb` says "No route to host" even though the TV is reachable, macOS Local Ne
 
 Or run `scripts/restore.sh` to undo everything at once.
 
-### Why the setup wizard is disabled
+<details>
+<summary>Why the setup wizard is disabled</summary>
 
 On Google TV, `com.google.android.tungsten.setupwraith` grabs HOME as soon as the stock launcher is disabled. Disabling it deletes every Wi-Fi network it created during first setup, so before disabling it the Wi-Fi networks were forgotten and re-joined in Settings (now owned by the system). Check with:
 
@@ -64,40 +131,13 @@ On Google TV, `com.google.android.tungsten.setupwraith` grabs HOME as soon as th
 ./scripts/tv.sh shell "dumpsys wifi | grep -o 'cname=[^ ]*' | sort | uniq -c"
 ```
 
-## Customising
+</details>
 
-All in `.env` (see [`.env.example`](.env.example)), then `./scripts/build-install.sh`. The values are baked into the APK at build time.
+## Credits
 
-Everything below is per profile (`PROFILE_n_…`, see [Profiles](#profiles)):
+- [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv), the starting point for this launcher.
+- Built with the help of [Claude](https://claude.ai) and [Claude Code](https://claude.com/claude-code) by Anthropic.
 
-- **Dock apps and order**: `PROFILE_n_DOCK_PACKAGES`, comma-separated, left to right. Find package names with `./scripts/tv.sh shell pm list packages -3`.
-- **Hide apps from the grid**: add them to `PROFILE_n_HIDDEN_PACKAGES`. Play Store and Settings are always hidden; they have their own pills.
-- **Wallpaper**: put an image in `app/src/main/res/drawable/` (e.g. `wallpaper.jpg`) and set `PROFILE_n_WALLPAPER_DRAWABLE` to its name without the extension (`wallpaper`). Leave it empty for pitch black. A dark gradient is drawn over it so the text stays readable.
+## License
 
-## Profiles
-
-Each person gets their own dock, hidden apps and wallpaper. Define them as `PROFILE_1_EMAIL`, `PROFILE_2_EMAIL`, … (read in order until the first missing one; at least one is required, or the build fails). The name and avatar come from the email's [Gravatar](https://gravatar.com) display name and picture, cached on the TV for a day; until they load, or without a Gravatar, the grey silhouette and the part of the email before `@` are shown. The greeting becomes "Good evening, <name>".
-
-With two or more profiles:
-
-- **Who's watching?** appears on a cold start and when the TV wakes from at least 5 minutes of standby with the home screen in front. Left/Right pick, OK chooses; Back does nothing.
-- **Profile pill**, the avatar left of Play Store: OK switches to the next profile.
-
-Switching profiles starts focus on the first dock app.
-
-## Home Assistant
-
-Set `HASS_URL` and a long-lived access token in `HASS_TOKEN` (HA profile → Security). Without both, nothing below is shown.
-
-- **Glance line** under the date: outside, `HASS_WEATHER` (condition icon, temperature and condition) and `HASS_AQI` (amber above 100, red above 150); then inside, `HASS_INSIDE_TEMPERATURE` and `HASS_INSIDE_HUMIDITY`. Icons are [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0).
-- **Lights pill**: `HASS_LIGHT`, any light or switch. OK turns it on or off.
-- **AC pill**: `HASS_CLIMATE`. OK opens a panel: Up/Down pick Power, Temperature or Fan; OK toggles power; Left/Right change temperature (`HASS_CLIMATE_MIN_TEMP` to `HASS_CLIMATE_MAX_TEMP`) and fan speed (`HASS_CLIMATE_FAN_MODES`, e.g. `auto,low,mid:Medium,high`). Changes are sent 500 ms after the last press. Back closes it.
-
-Leave any entity empty to hide that part; an unavailable entity shows `–`. States are fetched when the home screen appears and after each action, never in the background. If Home Assistant can't be reached, the last values stay on screen, dimmed.
-
-## Navigation
-
-- Up/Down move exactly one row. Up from the dock goes to the top bar; Down from the dock goes into the grid.
-- Left/Right stop at the ends of a row; they never wrap or fall through.
-- Back returns to the dock. Home while already home also returns to the dock.
-- The last focused tile is remembered when you come back from an app.
+See [LICENSE](LICENSE).
