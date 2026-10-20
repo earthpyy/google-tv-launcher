@@ -83,7 +83,10 @@ final class TileMenu {
         float grow = anchor.getHeight() * (anchor.getScaleY() - 1) / 2;
         float gap = 16 * density;
         float above = y - grow - gap - height;
-        float top = above >= visibleTop + gap ? above : Math.min(y + anchor.getHeight() + grow + gap, visibleBottom - gap - height);
+        // Below the tile's whole cell, so the app name under it stays readable
+        float cellBottom = y - anchor.getTop() - anchor.getTranslationY() + ((View) anchor.getParent()).getHeight();
+        float below = Math.max(y + anchor.getHeight() + grow + gap, cellBottom);
+        float top = above >= visibleTop + gap ? above : Math.min(below, visibleBottom - gap - height);
         float side = 64 * density;
         float left = x + anchor.getWidth() / 2f - width / 2f;
         panel.setTranslationX(Math.max(side, Math.min(left, content.getWidth() - side - width)));

@@ -240,7 +240,7 @@
             android:id="@+id/tile_menu"
             android:layout_width="260dp"
             android:layout_height="wrap_content"
-            android:background="@drawable/panel_background"
+            android:background="@drawable/menu_background"
             android:orientation="vertical"
             android:padding="8dp"
             android:visibility="invisible" />

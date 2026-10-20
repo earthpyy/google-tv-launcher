@@ -12,7 +12,7 @@
         android:background="@drawable/dock_placeholder"
         android:gravity="center"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="8dp">
 
         <TextView
             android:id="@+id/plus"
@@ -22,16 +22,16 @@
             android:includeFontPadding="false"
             android:text="@string/dock_plus"
             android:textColor="#59FFFFFF"
-            android:textSize="40sp" />
+            android:textSize="28sp" />
 
         <TextView
             android:id="@+id/hint"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="4dp"
             android:gravity="center"
             android:text="@string/dock_hint"
             android:textColor="#66FFFFFF"
-            android:textSize="14sp" />
+            android:textSize="13sp" />
     </LinearLayout>
 </FrameLayout>

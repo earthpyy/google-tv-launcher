@@ -116,7 +116,10 @@ public class MainActivity extends Activity {
     private int bandTop;
     private int bandHeight;
     private int gridTop;
+    private int hiddenToggleTop;
     private int hiddenTop;
+    // Dock cells reach into the band's bottom padding, room for the arrows while moving
+    private int dockCellHeight;
     private int topInset;
 
     private int zone = ZONE_DOCK;
@@ -366,6 +369,11 @@ public class MainActivity extends Activity {
         }
         if (pressPending) {
             if (isSelectKey(code)) {
+                // The system may flag the hold before our own timer fires
+                if (event.isLongPress()) {
+                    mainHandler.removeCallbacks(longPress);
+                    longPress.run();
+                }
                 return true;
             }
             // Another key while holding OK: neither launch nor menu
@@ -645,7 +653,9 @@ public class MainActivity extends Activity {
                 // Keeps the last grid row in view above the toggle
                 return -(gridTop + (Math.max(0, gridApps.size() - 1) / COLUMNS) * rowHeight - topInset);
             case ZONE_HIDDEN:
-                return -(hiddenTop + (hiddenIndex / COLUMNS) * rowHeight - topInset);
+                // The first hidden row keeps the toggle in view above it
+                int row = hiddenIndex / COLUMNS;
+                return -((row == 0 ? hiddenToggleTop : hiddenTop + row * rowHeight) - topInset);
             default:
                 return 0;
         }
@@ -707,6 +717,8 @@ public class MainActivity extends Activity {
     }
 
     private void updateGlow(boolean immediate) {
+        // Nothing to glow behind an empty dock
+        glow.animate().alpha(dockApps.isEmpty() ? 0f : 1f).setDuration(immediate ? 0 : 450).start();
         if (dockApps.isEmpty()) {
             return;
         }
@@ -751,6 +763,7 @@ public class MainActivity extends Activity {
         cellWidth = tileWidth + gap;
         rowHeight = tileHeight + Math.round(64 * density);
         bandHeight = tileHeight + 2 * bandPad;
+        dockCellHeight = tileHeight + bandPad;
         bandTop = screenHeight - Math.round(44 * density) - bandHeight;
         gridTop = screenHeight + Math.round(16 * density);
         topInset = Math.round(56 * density);
@@ -983,7 +996,8 @@ public class MainActivity extends Activity {
             hiddenToggle.setVisibility(View.GONE);
         } else {
             hiddenToggle.setText(getString(R.string.hidden_apps, hiddenApps.size()));
-            ((FrameLayout.LayoutParams) hiddenToggle.getLayoutParams()).topMargin = bottom;
+            hiddenToggleTop = bottom;
+            ((FrameLayout.LayoutParams) hiddenToggle.getLayoutParams()).topMargin = hiddenToggleTop;
             hiddenToggle.setVisibility(View.VISIBLE);
             hiddenTop = bottom + hiddenToggle.getLayoutParams().height + Math.round(40 * getResources().getDisplayMetrics().density);
             bottom = hiddenTop;
@@ -1044,7 +1058,7 @@ public class MainActivity extends Activity {
         }
         for (AppEntry app : dockApps) {
             TileHolder tile = new TileHolder(inflater.inflate(R.layout.item_tile, dockRow, false),
-                    cellWidth, tileHeight, tileWidth, tileHeight, 0);
+                    cellWidth, dockCellHeight, tileWidth, tileHeight, 0);
             tile.bind(app);
             dockRow.addView(tile.itemView);
             dockTiles.add(tile);
