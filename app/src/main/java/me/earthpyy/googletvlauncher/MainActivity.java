@@ -13,6 +13,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -31,6 +32,7 @@ import androidx.dynamicanimation.animation.SpringForce;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashSet;
@@ -50,12 +52,29 @@ public class MainActivity extends Activity {
     private static final String PREF_TOP = "top";
     private static final String PREF_DOCK = "dock";
     private static final String PREF_GRID = "grid";
+    private static final String PREF_PROFILE = "profile";
+
+    // Waking the TV after at least this long asks who's watching again
+    private static final long PICKER_AFTER_STANDBY_MS = 5 * 60 * 1000L;
+    // How soon after the screen turns on the launcher must resume to count as "in front at wake"
+    private static final long WAKE_RESUME_WINDOW_MS = 5000L;
 
     private final ExecutorService loader = Executors.newSingleThreadExecutor();
+    // Gravatar gets its own thread, so a slow network never holds up the app list or Home Assistant
+    private final ExecutorService profileLoader = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final List<AppEntry> dockApps = new ArrayList<>();
     private final List<AppEntry> gridApps = new ArrayList<>();
     private final List<TileHolder> dockTiles = new ArrayList<>();
+    private List<AppEntry> allApps = new ArrayList<>();
+
+    private List<Profile> profiles;
+    private Gravatar gravatar;
+    private Gravatar.Entry[] profileEntries;
+    private ProfilePicker picker;
+    private ImageView profilePill;
+    private int activeProfile;
+    private boolean refreshingProfiles;
 
     private FrameLayout content;
     private GlassView glass;
@@ -92,6 +111,10 @@ public class MainActivity extends Activity {
     private int gridIndex;
     private int glowColor;
     private boolean loaded;
+    private boolean resetFocus;
+    private boolean resumed;
+    private long screenOffAt;
+    private long wokeAt;
 
     private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
         @Override
@@ -104,6 +127,29 @@ public class MainActivity extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             loadApps();
+        }
+    };
+
+    // Ask who's watching when the TV wakes from a long standby with the launcher in front
+    private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            long now = SystemClock.elapsedRealtime();
+            if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+                screenOffAt = now;
+                return;
+            }
+            boolean longStandby = screenOffAt != 0 && now - screenOffAt >= PICKER_AFTER_STANDBY_MS;
+            screenOffAt = 0;
+            if (!longStandby) {
+                return;
+            }
+            if (resumed) {
+                showPicker();
+            } else {
+                // The launcher usually resumes just after the screen comes on; onResume checks this
+                wokeAt = now;
+            }
         }
     };
 
@@ -127,6 +173,19 @@ public class MainActivity extends Activity {
         clock.setTypeface(Fonts.outfit(this, 200));
         date.setTypeface(Fonts.outfit(this, 300));
 
+        profiles = Profile.all();
+        gravatar = new Gravatar(this);
+        profileEntries = new Gravatar.Entry[profiles.size()];
+        picker = new ProfilePicker(this, profiles.size(), this::pickProfile);
+        for (int i = 0; i < profiles.size(); i++) {
+            profileEntries[i] = gravatar.cached(profiles.get(i));
+            picker.bind(i, profileEntries[i]);
+        }
+        activeProfile = clamp(getSharedPreferences(PREFS, MODE_PRIVATE).getInt(PREF_PROFILE, 0), 0, profiles.size() - 1);
+        profilePill = findViewById(R.id.pill_profile);
+        // The avatar is a photo; the icon pill tint would flatten it
+        profilePill.setImageTintList(null);
+
         // Home Assistant pills come first, when configured
         home = new HomeControls(this, loader, mainHandler, this::highlight);
         if (home.hasLight()) {
@@ -134,6 +193,14 @@ public class MainActivity extends Activity {
         }
         if (home.hasClimate()) {
             pills.add(findViewById(R.id.pill_ac));
+        }
+        // With a single profile there is nothing to switch to; Play Store takes over the wider gap
+        if (hasManyProfiles()) {
+            profilePill.setVisibility(View.VISIBLE);
+            pills.add(profilePill);
+        } else {
+            ((ViewGroup.MarginLayoutParams) storePill.getLayoutParams()).setMarginStart(
+                    ((ViewGroup.MarginLayoutParams) profilePill.getLayoutParams()).getMarginStart());
         }
         pills.add(storePill);
         pills.add(settingsPill);
@@ -143,6 +210,7 @@ public class MainActivity extends Activity {
 
         setupGeometry();
         setupWallpaper();
+        showActiveProfile();
         restoreFocusState();
 
         IntentFilter packages = new IntentFilter();
@@ -152,7 +220,13 @@ public class MainActivity extends Activity {
         packages.addDataScheme("package");
         registerReceiver(packageReceiver, packages);
 
+        IntentFilter screen = new IntentFilter(Intent.ACTION_SCREEN_OFF);
+        screen.addAction(Intent.ACTION_SCREEN_ON);
+        registerReceiver(screenReceiver, screen);
+
         loadApps();
+        // Cold start
+        showPicker();
     }
 
     @Override
@@ -174,11 +248,18 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         home.refresh();
+        if (wokeAt != 0 && SystemClock.elapsedRealtime() - wokeAt < WAKE_RESUME_WINDOW_MS) {
+            showPicker();
+        }
+        wokeAt = 0;
+        refreshProfiles();
     }
 
     @Override
     protected void onPause() {
+        resumed = false;
         home.onPause();
         saveFocusState();
         super.onPause();
@@ -187,13 +268,18 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         unregisterReceiver(packageReceiver);
+        unregisterReceiver(screenReceiver);
         loader.shutdownNow();
+        profileLoader.shutdownNow();
         super.onDestroy();
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (picker.isOpen()) {
+            return;
+        }
         // Pressing Home while already home jumps back to the dock
         boolean alreadyHome = hasWindowFocus()
                 && (intent.getFlags() & Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT) != Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT;
@@ -208,7 +294,16 @@ public class MainActivity extends Activity {
         if (!isNavigationKey(code)) {
             return super.dispatchKeyEvent(event);
         }
-        if (event.getAction() != KeyEvent.ACTION_DOWN || !loaded) {
+        if (event.getAction() != KeyEvent.ACTION_DOWN) {
+            return true;
+        }
+        if (picker.isOpen()) {
+            if (event.getRepeatCount() == 0 || !isSelectKey(code)) {
+                picker.onKey(code);
+            }
+            return true;
+        }
+        if (!loaded) {
             return true;
         }
         if (home.isPanelOpen()) {
@@ -256,6 +351,12 @@ public class MainActivity extends Activity {
             default:
                 return false;
         }
+    }
+
+    private static boolean isSelectKey(int code) {
+        return code != KeyEvent.KEYCODE_DPAD_UP && code != KeyEvent.KEYCODE_DPAD_DOWN
+                && code != KeyEvent.KEYCODE_DPAD_LEFT && code != KeyEvent.KEYCODE_DPAD_RIGHT
+                && code != KeyEvent.KEYCODE_BACK;
     }
 
     // Navigation: Up/Down always move exactly one row, and the edges never fall through.
@@ -321,6 +422,8 @@ public class MainActivity extends Activity {
                     home.pressLight();
                 } else if (pill.getId() == R.id.pill_ac) {
                     home.pressClimate();
+                } else if (pill == profilePill) {
+                    switchProfile((activeProfile + 1) % profiles.size());
                 } else if (pill == storePill) {
                     Intent store = getPackageManager().getLeanbackLaunchIntentForPackage("com.android.vending");
                     startSafely(store, getString(R.string.pill_store));
@@ -533,18 +636,107 @@ public class MainActivity extends Activity {
     }
 
     private void setupWallpaper() {
-        String name = BuildConfig.WALLPAPER_DRAWABLE;
+        String name = profiles.get(activeProfile).wallpaper;
         int id = name.isEmpty() ? 0 : getResources().getIdentifier(name, "drawable", getPackageName());
+        ImageView wallpaper = findViewById(R.id.wallpaper);
+        View scrim = findViewById(R.id.wallpaper_scrim);
         if (id == 0) {
+            wallpaper.setImageDrawable(null);
+            wallpaper.setVisibility(View.GONE);
+            scrim.setVisibility(View.GONE);
             return;
         }
-        ImageView wallpaper = findViewById(R.id.wallpaper);
         wallpaper.setImageResource(id);
         wallpaper.setVisibility(View.VISIBLE);
-        View scrim = findViewById(R.id.wallpaper_scrim);
         scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{0xB3000000, 0x40000000, 0xE6000000}));
         scrim.setVisibility(View.VISIBLE);
+    }
+
+    // Profiles
+
+    private boolean hasManyProfiles() {
+        return profiles.size() > 1;
+    }
+
+    private void showPicker() {
+        if (!hasManyProfiles() || picker.isOpen()) {
+            return;
+        }
+        home.onPause();
+        content.setVisibility(View.INVISIBLE);
+        picker.show(activeProfile);
+        updateClock();
+        refreshProfiles();
+    }
+
+    private void pickProfile(int index) {
+        content.setVisibility(View.VISIBLE);
+        switchProfile(index);
+    }
+
+    /** Swaps in another profile's home screen; focus starts over on its first dock app. */
+    private void switchProfile(int index) {
+        activeProfile = index;
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(PREF_PROFILE, index).apply();
+        setupWallpaper();
+        showActiveProfile();
+        resetFocus = true;
+        if (loaded) {
+            showApps(allApps);
+        }
+    }
+
+    /** The pill avatar and the greeting name. */
+    private void showActiveProfile() {
+        Gravatar.Entry entry = profileEntries[activeProfile];
+        if (entry.avatar != null) {
+            profilePill.setImageBitmap(entry.avatar);
+        } else {
+            profilePill.setImageResource(R.drawable.avatar_placeholder);
+        }
+        updateClock();
+    }
+
+    /** Re-downloads names and avatars older than a day. Only runs when the launcher shows; nothing polls. */
+    private void refreshProfiles() {
+        if (refreshingProfiles) {
+            return;
+        }
+        List<Integer> stale = new ArrayList<>();
+        for (int i = 0; i < profiles.size(); i++) {
+            if (gravatar.isStale(profiles.get(i))) {
+                stale.add(i);
+            }
+        }
+        if (stale.isEmpty()) {
+            return;
+        }
+        refreshingProfiles = true;
+        profileLoader.execute(() -> {
+            for (int i : stale) {
+                Gravatar.Entry entry;
+                try {
+                    entry = gravatar.fetch(profiles.get(i));
+                } catch (IOException e) {
+                    // Keep showing the cached name and avatar; the next resume retries
+                    continue;
+                }
+                mainHandler.post(() -> showProfileEntry(i, entry));
+            }
+            mainHandler.post(() -> refreshingProfiles = false);
+        });
+    }
+
+    private void showProfileEntry(int index, Gravatar.Entry entry) {
+        if (isDestroyed()) {
+            return;
+        }
+        profileEntries[index] = entry;
+        picker.bind(index, entry);
+        if (index == activeProfile) {
+            showActiveProfile();
+        }
     }
 
     // Apps
@@ -560,17 +752,26 @@ public class MainActivity extends Activity {
         if (isDestroyed()) {
             return;
         }
+        allApps = apps;
         String focusedDock = packageAt(dockApps, dockIndex);
         String focusedGrid = packageAt(gridApps, gridIndex);
-        if (!loaded) {
+        if (resetFocus) {
+            resetFocus = false;
+            zone = ZONE_DOCK;
+            dockIndex = 0;
+            gridIndex = 0;
+            focusedDock = null;
+            focusedGrid = null;
+        } else if (!loaded) {
             SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
             focusedDock = prefs.getString(PREF_DOCK, null);
             focusedGrid = prefs.getString(PREF_GRID, null);
         }
 
-        List<String> dockPackages = Config.list(BuildConfig.DOCK_PACKAGES);
+        Profile profile = profiles.get(activeProfile);
+        List<String> dockPackages = profile.dockPackages;
         // Play Store and Settings have their own pills
-        Set<String> hidden = new HashSet<>(Config.list(BuildConfig.HIDDEN_PACKAGES));
+        Set<String> hidden = new HashSet<>(profile.hiddenPackages);
         hidden.add("com.android.vending");
         hidden.add("com.android.tv.settings");
 
@@ -650,8 +851,9 @@ public class MainActivity extends Activity {
         } else {
             salutation = "Good night";
         }
-        greeting.setText(salutation);
+        greeting.setText(salutation + ", " + profileEntries[activeProfile].name);
         clock.setText(TimeText.clock(now.getTime()));
+        picker.setClock(clock.getText().toString());
         date.setText(TimeText.date(now.getTime()));
     }
 

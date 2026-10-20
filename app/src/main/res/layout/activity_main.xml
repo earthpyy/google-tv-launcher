@@ -101,11 +101,19 @@
                 android:drawableStart="@drawable/ic_ac"
                 android:visibility="gone" />
 
-            <!-- Wider gap between the home controls and the system pills -->
+            <!-- Wider gap between the home controls and the profile and system pills -->
+            <ImageView
+                android:id="@+id/pill_profile"
+                style="@style/IconPill"
+                android:layout_marginStart="32dp"
+                android:contentDescription="@string/pill_profile"
+                android:padding="2dp"
+                android:src="@drawable/avatar_placeholder"
+                android:visibility="gone" />
+
             <ImageView
                 android:id="@+id/pill_store"
                 style="@style/IconPill"
-                android:layout_marginStart="32dp"
                 android:contentDescription="@string/pill_store"
                 android:src="@drawable/ic_store" />
 
@@ -215,5 +223,49 @@
             android:id="@+id/glass"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
+    </FrameLayout>
+
+    <!-- Who's watching: replaces the home screen on cold start and after a long standby -->
+    <FrameLayout
+        android:id="@+id/picker"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipChildren="false"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/picker_clock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="44dp"
+            android:layout_marginEnd="64dp"
+            android:textColor="#B3FFFFFF"
+            android:textSize="28sp" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:clipChildren="false"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/picker_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/picker_title"
+                android:textColor="#FFFFFFFF"
+                android:textSize="44sp" />
+
+            <LinearLayout
+                android:id="@+id/picker_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="64dp"
+                android:clipChildren="false"
+                android:orientation="horizontal" />
+        </LinearLayout>
     </FrameLayout>
 </FrameLayout>

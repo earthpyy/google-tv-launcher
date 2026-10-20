@@ -5,6 +5,17 @@ plugins {
 // Personal settings come from the environment (.env, see .env.example), never from the repo
 def env = { String name -> System.getenv(name) ?: '' }
 def quoted = { String value -> '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"' }
+def array = { List<String> values -> 'new String[]{' + values.collect { quoted(it) }.join(', ') + '}' }
+
+// Profiles: PROFILE_1_EMAIL, PROFILE_2_EMAIL, … read in order until the first missing email
+def profiles = []
+for (int i = 1; env("PROFILE_${i}_EMAIL".toString()); i++) {
+    def key = { String name -> env("PROFILE_${i}_${name}".toString()) }
+    profiles << [email: key('EMAIL'), dock: key('DOCK_PACKAGES'), hidden: key('HIDDEN_PACKAGES'), wallpaper: key('WALLPAPER_DRAWABLE')]
+}
+if (profiles.isEmpty()) {
+    throw new GradleException('No profiles: set at least PROFILE_1_EMAIL in .env (see .env.example)')
+}
 
 android {
     namespace 'me.earthpyy.googletvlauncher'
@@ -17,9 +28,10 @@ android {
         versionCode 1
         versionName '1.0'
 
-        buildConfigField 'String', 'DOCK_PACKAGES', quoted(env('DOCK_PACKAGES'))
-        buildConfigField 'String', 'HIDDEN_PACKAGES', quoted(env('HIDDEN_PACKAGES'))
-        buildConfigField 'String', 'WALLPAPER_DRAWABLE', quoted(env('WALLPAPER_DRAWABLE'))
+        buildConfigField 'String[]', 'PROFILE_EMAILS', array(profiles*.email)
+        buildConfigField 'String[]', 'PROFILE_DOCK_PACKAGES', array(profiles*.dock)
+        buildConfigField 'String[]', 'PROFILE_HIDDEN_PACKAGES', array(profiles*.hidden)
+        buildConfigField 'String[]', 'PROFILE_WALLPAPER_DRAWABLES', array(profiles*.wallpaper)
         buildConfigField 'String', 'HASS_URL', quoted(env('HASS_URL'))
         buildConfigField 'String', 'HASS_TOKEN', quoted(env('HASS_TOKEN'))
         buildConfigField 'String', 'HASS_WEATHER', quoted(env('HASS_WEATHER'))

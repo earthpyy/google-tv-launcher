@@ -13,7 +13,7 @@ cp .env.example .env   # then fill in the values
 mise install
 ```
 
-`.env` holds the TV address, the release keystore path and passwords, the dock apps and the Home Assistant settings. It is gitignored and never committed. The keystore lives outside the repo in `~/.keystores/googletvlauncher.jks`, so copy that file and `.env` to any other machine you build on (otherwise reinstalling fails with a signature mismatch).
+`.env` holds the TV address, the release keystore path and passwords, the profiles and the Home Assistant settings. It is gitignored and never committed. The keystore lives outside the repo in `~/.keystores/googletvlauncher.jks`, so copy that file and `.env` to any other machine you build on (otherwise reinstalling fails with a signature mismatch).
 
 To create a keystore from scratch:
 
@@ -68,9 +68,22 @@ On Google TV, `com.google.android.tungsten.setupwraith` grabs HOME as soon as th
 
 All in `.env` (see [`.env.example`](.env.example)), then `./scripts/build-install.sh`. The values are baked into the APK at build time.
 
-- **Dock apps and order**: `DOCK_PACKAGES`, comma-separated, left to right. Find package names with `./scripts/tv.sh shell pm list packages -3`.
-- **Hide apps from the grid**: add them to `HIDDEN_PACKAGES`. Play Store and Settings are always hidden; they have their own pills.
-- **Wallpaper**: put an image in `app/src/main/res/drawable/` (e.g. `wallpaper.jpg`) and set `WALLPAPER_DRAWABLE` to its name without the extension (`wallpaper`). Leave it empty for pitch black. A dark gradient is drawn over it so the text stays readable.
+Everything below is per profile (`PROFILE_n_…`, see [Profiles](#profiles)):
+
+- **Dock apps and order**: `PROFILE_n_DOCK_PACKAGES`, comma-separated, left to right. Find package names with `./scripts/tv.sh shell pm list packages -3`.
+- **Hide apps from the grid**: add them to `PROFILE_n_HIDDEN_PACKAGES`. Play Store and Settings are always hidden; they have their own pills.
+- **Wallpaper**: put an image in `app/src/main/res/drawable/` (e.g. `wallpaper.jpg`) and set `PROFILE_n_WALLPAPER_DRAWABLE` to its name without the extension (`wallpaper`). Leave it empty for pitch black. A dark gradient is drawn over it so the text stays readable.
+
+## Profiles
+
+Each person gets their own dock, hidden apps and wallpaper. Define them as `PROFILE_1_EMAIL`, `PROFILE_2_EMAIL`, … (read in order until the first missing one; at least one is required, or the build fails). The name and avatar come from the email's [Gravatar](https://gravatar.com) display name and picture, cached on the TV for a day; until they load, or without a Gravatar, the grey silhouette and the part of the email before `@` are shown. The greeting becomes "Good evening, <name>".
+
+With two or more profiles:
+
+- **Who's watching?** appears on a cold start and when the TV wakes from at least 5 minutes of standby with the home screen in front. Left/Right pick, OK chooses; Back does nothing.
+- **Profile pill**, the avatar left of Play Store: OK switches to the next profile.
+
+Switching profiles starts focus on the first dock app.
 
 ## Home Assistant
 

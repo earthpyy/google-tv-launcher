@@ -4,7 +4,9 @@
     <string name="dream_name">Clock</string>
     <string name="pill_light">Lights</string>
     <string name="pill_ac">Air conditioner</string>
+    <string name="pill_profile">Switch profile</string>
     <string name="pill_store">Play Store</string>
+    <string name="picker_title">Who\'s watching?</string>
     <string name="pill_settings">Settings</string>
     <string name="state_on">On</string>
     <string name="state_off">Off</string>
