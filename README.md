@@ -2,7 +2,7 @@
 
 A calm, Apple TV style home screen for the **Chromecast with Google TV (4K, Android 14)**. No ads, no recommendations, no autoplaying trailers: just your apps, the time, and (if you like) your home.
 
-![The home screen: greeting, clock, date, Home Assistant glance line, light and AC pills, profile, Play Store and Settings buttons, and a dock of four apps](docs/home.png)
+![The home screen over a Wikimedia picture of the day: greeting, clock, date, Home Assistant glance line, football line, light and AC pills, profile, wallpaper, Play Store and Settings buttons, and a dock of four apps](docs/home.png)
 
 Built on top of [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv).
 
@@ -174,6 +174,7 @@ On Google TV, `com.google.android.tungsten.setupwraith` grabs HOME as soon as th
 ## Credits
 
 - [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv), the starting point for this launcher.
+- Screenshot wallpaper: [*Gewone fopzwam (Laccaria laccata)*](https://commons.wikimedia.org/wiki/File:Gewone_fopzwam_(Laccaria_laccata)._Locatie,_Paddenstoelenreservaat._14-10-2025._(d.j.b).jpg) by Dominicus Johannes Bergsma, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0).
 - Built with the help of [Claude](https://claude.ai) and [Claude Code](https://claude.com/claude-code) by Anthropic.
 
 ## License
