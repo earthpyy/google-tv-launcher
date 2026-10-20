@@ -64,6 +64,17 @@
                 android:layout_height="wrap_content"
                 android:textColor="#B3FFFFFF"
                 android:textSize="20sp" />
+
+            <!-- Home Assistant glance: weather, AQI and indoor climate -->
+            <TextView
+                android:id="@+id/glance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:singleLine="true"
+                android:textColor="#B3FFFFFF"
+                android:textSize="20sp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <LinearLayout
@@ -77,15 +88,24 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/pill_wifi"
+                android:id="@+id/pill_light"
                 style="@style/Pill"
-                android:drawableStart="@drawable/ic_wifi"
-                android:maxWidth="240dp"
-                android:text="@string/pill_wifi" />
+                android:contentDescription="@string/pill_light"
+                android:drawableStart="@drawable/ic_light"
+                android:visibility="gone" />
 
+            <TextView
+                android:id="@+id/pill_ac"
+                style="@style/Pill"
+                android:contentDescription="@string/pill_ac"
+                android:drawableStart="@drawable/ic_ac"
+                android:visibility="gone" />
+
+            <!-- Wider gap between the home controls and the system pills -->
             <ImageView
                 android:id="@+id/pill_store"
                 style="@style/IconPill"
+                android:layout_marginStart="32dp"
                 android:contentDescription="@string/pill_store"
                 android:src="@drawable/ic_store" />
 
@@ -116,6 +136,80 @@
             android:clipChildren="false"
             android:clipToPadding="false"
             android:overScrollMode="never" />
+
+        <!-- AC panel, placed under the AC pill when opened; the glass highlight marks its focused row -->
+        <LinearLayout
+            android:id="@+id/ac_panel"
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:background="@drawable/panel_background"
+            android:orientation="vertical"
+            android:padding="8dp"
+            android:visibility="invisible">
+
+            <LinearLayout
+                android:id="@+id/ac_power"
+                style="@style/PanelRow">
+
+                <TextView
+                    android:id="@+id/ac_power_label"
+                    style="@style/PanelLabel"
+                    android:text="@string/panel_power" />
+
+                <TextView
+                    android:id="@+id/ac_power_value"
+                    style="@style/PanelValue"
+                    android:layout_marginEnd="24dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/ac_temp"
+                style="@style/PanelRow">
+
+                <TextView
+                    android:id="@+id/ac_temp_label"
+                    style="@style/PanelLabel"
+                    android:text="@string/panel_temperature" />
+
+                <TextView
+                    android:id="@+id/ac_temp_down"
+                    style="@style/PanelArrow"
+                    android:text="@string/arrow_left" />
+
+                <TextView
+                    android:id="@+id/ac_temp_value"
+                    style="@style/PanelValue" />
+
+                <TextView
+                    android:id="@+id/ac_temp_up"
+                    style="@style/PanelArrow"
+                    android:text="@string/arrow_right" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/ac_fan"
+                style="@style/PanelRow">
+
+                <TextView
+                    android:id="@+id/ac_fan_label"
+                    style="@style/PanelLabel"
+                    android:text="@string/panel_fan" />
+
+                <TextView
+                    android:id="@+id/ac_fan_down"
+                    style="@style/PanelArrow"
+                    android:text="@string/arrow_left" />
+
+                <TextView
+                    android:id="@+id/ac_fan_value"
+                    style="@style/PanelValue" />
+
+                <TextView
+                    android:id="@+id/ac_fan_up"
+                    style="@style/PanelArrow"
+                    android:text="@string/arrow_right" />
+            </LinearLayout>
+        </LinearLayout>
 
         <me.earthpyy.googletvlauncher.GlassView
             android:id="@+id/glass"

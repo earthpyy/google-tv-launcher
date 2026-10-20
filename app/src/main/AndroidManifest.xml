@@ -4,11 +4,8 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <!-- Needed to read the Wi-Fi network name; granted over adb by build-install.sh -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Home Assistant REST calls -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Without this, package visibility on Android 11+ hides every app -->
     <queries>

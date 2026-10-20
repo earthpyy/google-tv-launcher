@@ -10,10 +10,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.drawable.GradientDrawable;
-import android.net.ConnectivityManager;
-import android.net.Network;
-import android.net.NetworkCapabilities;
-import android.net.wifi.WifiInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -36,7 +32,6 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
@@ -69,8 +64,10 @@ public class MainActivity extends Activity {
     private TextView greeting;
     private TextView clock;
     private TextView date;
-    private TextView wifiPill;
-    private View[] pills;
+    private View storePill;
+    private View settingsPill;
+    private final List<View> pills = new ArrayList<>();
+    private HomeControls home;
     private LinearLayout dockRow;
     private RecyclerView grid;
     private TileAdapter gridAdapter;
@@ -110,20 +107,6 @@ public class MainActivity extends Activity {
         }
     };
 
-    private final ConnectivityManager.NetworkCallback networkCallback =
-            new ConnectivityManager.NetworkCallback(ConnectivityManager.NetworkCallback.FLAG_INCLUDE_LOCATION_INFO) {
-                @Override
-                public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) {
-                    String name = networkName(capabilities);
-                    mainHandler.post(() -> wifiPill.setText(name));
-                }
-
-                @Override
-                public void onLost(Network network) {
-                    mainHandler.post(() -> wifiPill.setText(R.string.wifi_offline));
-                }
-            };
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -135,15 +118,25 @@ public class MainActivity extends Activity {
         greeting = findViewById(R.id.greeting);
         clock = findViewById(R.id.clock);
         date = findViewById(R.id.date);
-        wifiPill = findViewById(R.id.pill_wifi);
-        pills = new View[]{wifiPill, findViewById(R.id.pill_store), findViewById(R.id.pill_settings)};
+        storePill = findViewById(R.id.pill_store);
+        settingsPill = findViewById(R.id.pill_settings);
         dockRow = findViewById(R.id.dock_row);
         grid = findViewById(R.id.grid);
 
         greeting.setTypeface(Fonts.outfit(this, 300));
         clock.setTypeface(Fonts.outfit(this, 200));
         date.setTypeface(Fonts.outfit(this, 300));
-        wifiPill.setTypeface(Fonts.outfit(this, 400));
+
+        // Home Assistant pills come first, when configured
+        home = new HomeControls(this, loader, mainHandler, this::highlight);
+        if (home.hasLight()) {
+            pills.add(findViewById(R.id.pill_light));
+        }
+        if (home.hasClimate()) {
+            pills.add(findViewById(R.id.pill_ac));
+        }
+        pills.add(storePill);
+        pills.add(settingsPill);
 
         scrollSpring = new SpringAnimation(content, DynamicAnimation.TRANSLATION_Y, 0f);
         scrollSpring.getSpring().setStiffness(SpringForce.STIFFNESS_LOW).setDampingRatio(SpringForce.DAMPING_RATIO_NO_BOUNCY);
@@ -170,21 +163,23 @@ public class MainActivity extends Activity {
         time.addAction(Intent.ACTION_TIMEZONE_CHANGED);
         registerReceiver(timeReceiver, time);
         updateClock();
-        ConnectivityManager connectivity = getSystemService(ConnectivityManager.class);
-        // No callback fires when there is no network at all, so start from the current state
-        wifiPill.setText(connectivity.getActiveNetwork() == null ? R.string.wifi_offline : R.string.pill_wifi);
-        connectivity.registerDefaultNetworkCallback(networkCallback);
     }
 
     @Override
     protected void onStop() {
         unregisterReceiver(timeReceiver);
-        getSystemService(ConnectivityManager.class).unregisterNetworkCallback(networkCallback);
         super.onStop();
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        home.refresh();
+    }
+
+    @Override
     protected void onPause() {
+        home.onPause();
         saveFocusState();
         super.onPause();
     }
@@ -214,6 +209,10 @@ public class MainActivity extends Activity {
             return super.dispatchKeyEvent(event);
         }
         if (event.getAction() != KeyEvent.ACTION_DOWN || !loaded) {
+            return true;
+        }
+        if (home.isPanelOpen()) {
+            home.onPanelKey(code, event.getRepeatCount());
             return true;
         }
         switch (code) {
@@ -264,7 +263,7 @@ public class MainActivity extends Activity {
     private void moveHorizontal(int delta) {
         switch (zone) {
             case ZONE_TOP:
-                setFocus(ZONE_TOP, clamp(topIndex + delta, 0, pills.length - 1), false);
+                setFocus(ZONE_TOP, clamp(topIndex + delta, 0, pills.size() - 1), false);
                 break;
             case ZONE_DOCK:
                 setFocus(ZONE_DOCK, clamp(dockIndex + delta, 0, dockApps.size() - 1), false);
@@ -317,9 +316,12 @@ public class MainActivity extends Activity {
     private void activate() {
         switch (zone) {
             case ZONE_TOP:
-                if (topIndex == 0) {
-                    startSafely(new Intent(Settings.ACTION_WIFI_SETTINGS), getString(R.string.pill_wifi));
-                } else if (topIndex == 1) {
+                View pill = pills.get(topIndex);
+                if (pill.getId() == R.id.pill_light) {
+                    home.pressLight();
+                } else if (pill.getId() == R.id.pill_ac) {
+                    home.pressClimate();
+                } else if (pill == storePill) {
                     Intent store = getPackageManager().getLeanbackLaunchIntentForPackage("com.android.vending");
                     startSafely(store, getString(R.string.pill_store));
                 } else {
@@ -375,11 +377,12 @@ public class MainActivity extends Activity {
             current.setFocused(true, zone == ZONE_GRID, immediate);
         }
 
-        for (int i = 0; i < pills.length; i++) {
+        for (int i = 0; i < pills.size(); i++) {
             boolean selected = zone == ZONE_TOP && i == topIndex;
-            pills[i].setSelected(selected);
-            pills[i].animate().scaleX(selected ? 1.06f : 1f).scaleY(selected ? 1.06f : 1f).setDuration(150).start();
+            pills.get(i).setSelected(selected);
+            pills.get(i).animate().scaleX(selected ? 1.06f : 1f).scaleY(selected ? 1.06f : 1f).setDuration(150).start();
         }
+        home.restyle();
 
         if (zone == ZONE_DOCK) {
             updateGlow(immediate);
@@ -403,17 +406,30 @@ public class MainActivity extends Activity {
             glass.animate().alpha(0f).setDuration(120).start();
             return;
         }
-        float x = 0;
-        float y = 0;
-        View view = tile.card;
-        while (view != content) {
-            x += view.getLeft();
-            y += view.getTop();
-            view = (View) view.getParent();
-        }
         float scale = TileHolder.FOCUS_SCALE;
         float pad = getResources().getDisplayMetrics().density * 2;
-        glass.moveTo(x + tileWidth / 2f, y + tileHeight / 2f, tileWidth * scale + pad, tileHeight * scale + pad, immediate);
+        moveGlassOver(tile.card, tileWidth * scale + pad, tileHeight * scale + pad, immediate);
+    }
+
+    /** Glass over any view (an AC panel row), or hidden when {@code view} is null. */
+    private void highlight(View view) {
+        if (view == null) {
+            glass.animate().alpha(0f).setDuration(120).start();
+            return;
+        }
+        moveGlassOver(view, view.getWidth(), view.getHeight(), false);
+    }
+
+    private void moveGlassOver(View target, float width, float height, boolean immediate) {
+        float x = 0;
+        float y = 0;
+        View view = target;
+        while (view != content) {
+            x += view.getLeft() + view.getTranslationX();
+            y += view.getTop() + view.getTranslationY();
+            view = (View) view.getParent();
+        }
+        glass.moveTo(x + target.getWidth() / 2f, y + target.getHeight() / 2f, width, height, immediate);
         glass.animate().alpha(1f).setDuration(120).start();
     }
 
@@ -517,7 +533,7 @@ public class MainActivity extends Activity {
     }
 
     private void setupWallpaper() {
-        String name = getString(R.string.wallpaper_drawable);
+        String name = BuildConfig.WALLPAPER_DRAWABLE;
         int id = name.isEmpty() ? 0 : getResources().getIdentifier(name, "drawable", getPackageName());
         if (id == 0) {
             return;
@@ -552,8 +568,11 @@ public class MainActivity extends Activity {
             focusedGrid = prefs.getString(PREF_GRID, null);
         }
 
-        List<String> dockPackages = Arrays.asList(getResources().getStringArray(R.array.dock_packages));
-        Set<String> hidden = new HashSet<>(Arrays.asList(getResources().getStringArray(R.array.hidden_packages)));
+        List<String> dockPackages = Config.list(BuildConfig.DOCK_PACKAGES);
+        // Play Store and Settings have their own pills
+        Set<String> hidden = new HashSet<>(Config.list(BuildConfig.HIDDEN_PACKAGES));
+        hidden.add("com.android.vending");
+        hidden.add("com.android.tv.settings");
 
         dockApps.clear();
         for (String packageName : dockPackages) {
@@ -636,19 +655,6 @@ public class MainActivity extends Activity {
         date.setText(TimeText.date(now.getTime()));
     }
 
-    private String networkName(NetworkCapabilities capabilities) {
-        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) {
-            return getString(R.string.wifi_ethernet);
-        }
-        if (capabilities.getTransportInfo() instanceof WifiInfo) {
-            String ssid = ((WifiInfo) capabilities.getTransportInfo()).getSSID();
-            if (ssid != null && !ssid.equals(WifiInfo.class.getName()) && !ssid.contains("<unknown ssid>")) {
-                return ssid.replaceAll("^\"|\"$", "");
-            }
-        }
-        return getString(R.string.pill_wifi);
-    }
-
     // Remembered focus
 
     private void saveFocusState() {
@@ -666,7 +672,7 @@ public class MainActivity extends Activity {
     private void restoreFocusState() {
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         zone = prefs.getInt(PREF_ZONE, ZONE_DOCK);
-        topIndex = clamp(prefs.getInt(PREF_TOP, 0), 0, pills.length - 1);
+        topIndex = clamp(prefs.getInt(PREF_TOP, 0), 0, pills.size() - 1);
     }
 
     private static String packageAt(List<AppEntry> apps, int index) {

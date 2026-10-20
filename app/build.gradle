@@ -2,6 +2,10 @@ plugins {
     id 'com.android.application'
 }
 
+// Personal settings come from the environment (.env, see .env.example), never from the repo
+def env = { String name -> System.getenv(name) ?: '' }
+def quoted = { String value -> '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"' }
+
 android {
     namespace 'me.earthpyy.googletvlauncher'
     compileSdk 34
@@ -12,6 +16,24 @@ android {
         targetSdk 34
         versionCode 1
         versionName '1.0'
+
+        buildConfigField 'String', 'DOCK_PACKAGES', quoted(env('DOCK_PACKAGES'))
+        buildConfigField 'String', 'HIDDEN_PACKAGES', quoted(env('HIDDEN_PACKAGES'))
+        buildConfigField 'String', 'WALLPAPER_DRAWABLE', quoted(env('WALLPAPER_DRAWABLE'))
+        buildConfigField 'String', 'HASS_URL', quoted(env('HASS_URL'))
+        buildConfigField 'String', 'HASS_TOKEN', quoted(env('HASS_TOKEN'))
+        buildConfigField 'String', 'HASS_WEATHER', quoted(env('HASS_WEATHER'))
+        buildConfigField 'String', 'HASS_AQI', quoted(env('HASS_AQI'))
+        buildConfigField 'String', 'HASS_INSIDE_TEMPERATURE', quoted(env('HASS_INSIDE_TEMPERATURE'))
+        buildConfigField 'String', 'HASS_INSIDE_HUMIDITY', quoted(env('HASS_INSIDE_HUMIDITY'))
+        buildConfigField 'String', 'HASS_LIGHT', quoted(env('HASS_LIGHT'))
+        buildConfigField 'String', 'HASS_CLIMATE', quoted(env('HASS_CLIMATE'))
+        buildConfigField 'int', 'HASS_CLIMATE_MIN_TEMP', env('HASS_CLIMATE_MIN_TEMP') ?: '23'
+        buildConfigField 'int', 'HASS_CLIMATE_MAX_TEMP', env('HASS_CLIMATE_MAX_TEMP') ?: '26'
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     signingConfigs {

@@ -2,10 +2,20 @@
 <resources>
     <string name="app_name">Home</string>
     <string name="dream_name">Clock</string>
-    <string name="pill_wifi">Wi-Fi</string>
+    <string name="pill_light">Lights</string>
+    <string name="pill_ac">Air conditioner</string>
     <string name="pill_store">Play Store</string>
     <string name="pill_settings">Settings</string>
-    <string name="wifi_offline">Offline</string>
-    <string name="wifi_ethernet">Ethernet</string>
+    <string name="state_on">On</string>
+    <string name="state_off">Off</string>
+    <string name="glance_aqi">AQI</string>
+    <string name="glance_inside">Inside</string>
+    <string name="panel_power">Power</string>
+    <string name="panel_temperature">Temperature</string>
+    <string name="panel_fan">Fan</string>
+    <string name="arrow_left">‹</string>
+    <string name="arrow_right">›</string>
+    <string name="hass_unreachable">Couldn\'t reach Home Assistant</string>
+    <string name="hass_auth_failed">Home Assistant token rejected</string>
     <string name="launch_failed">Can\'t open %1$s</string>
 </resources>

@@ -2,7 +2,7 @@
 
 Custom made Google TV Launcher based on [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv).
 
-An Apple TV style home screen for a **Chromecast with Google TV (4K, Android 14)**: pitch black background, a four-app dock, a 4-column app grid below it, one glass focus highlight, and a clock in [Outfit](https://github.com/Outfitio/Outfit-Fonts) (SIL OFL). No blur, no video, no network polling.
+An Apple TV style home screen for a **Chromecast with Google TV (4K, Android 14)**: pitch black background, a four-app dock, a 4-column app grid below it, one glass focus highlight, a clock in [Outfit](https://github.com/Outfitio/Outfit-Fonts) (SIL OFL), and optional [Home Assistant](https://www.home-assistant.io) controls. No blur, no video, no background polling.
 
 ## Setup
 
@@ -13,7 +13,7 @@ cp .env.example .env   # then fill in the values
 mise install
 ```
 
-`.env` holds the TV address and the release keystore path and passwords. It is gitignored and never committed. The keystore lives outside the repo in `~/.keystores/googletvlauncher.jks`, so copy that file and `.env` to any other machine you build on (otherwise reinstalling fails with a signature mismatch).
+`.env` holds the TV address, the release keystore path and passwords, the dock apps and the Home Assistant settings. It is gitignored and never committed. The keystore lives outside the repo in `~/.keystores/googletvlauncher.jks`, so copy that file and `.env` to any other machine you build on (otherwise reinstalling fails with a signature mismatch).
 
 To create a keystore from scratch:
 
@@ -39,7 +39,7 @@ If `adb` says "No route to host" even though the TV is reachable, macOS Local Ne
 | `scripts/pair.sh` | Pair and connect over Wireless debugging |
 | `scripts/tv.sh` | Run any adb command against the TV (finds the current connect port for you) |
 | `scripts/backup.sh` | Save package lists, `getprop` and all settings to `backup/<timestamp>/` (gitignored) |
-| `scripts/build-install.sh` | Build the signed release APK, install it, grant the Wi-Fi name permission, set it as home and as the screensaver |
+| `scripts/build-install.sh` | Build the signed release APK, install it, set it as home and as the screensaver |
 | `scripts/restore.sh` | Re-enable everything in `debloat-list.txt` and `launcher-swap-list.txt` and restore the stock home and ambient mode |
 
 ## What was changed on the TV
@@ -66,11 +66,21 @@ On Google TV, `com.google.android.tungsten.setupwraith` grabs HOME as soon as th
 
 ## Customising
 
-All in [`app/src/main/res/values/config.xml`](app/src/main/res/values/config.xml), then `./scripts/build-install.sh`:
+All in `.env` (see [`.env.example`](.env.example)), then `./scripts/build-install.sh`. The values are baked into the APK at build time.
 
-- **Dock apps and order**: `dock_packages`, left to right. Find package names with `./scripts/tv.sh shell pm list packages -3`.
-- **Hide apps from the grid**: add them to `hidden_packages`.
-- **Wallpaper**: put an image in `app/src/main/res/drawable/` (e.g. `wallpaper.jpg`) and set `wallpaper_drawable` to its name without the extension (`wallpaper`). Leave it empty for pitch black. A dark gradient is drawn over it so the text stays readable.
+- **Dock apps and order**: `DOCK_PACKAGES`, comma-separated, left to right. Find package names with `./scripts/tv.sh shell pm list packages -3`.
+- **Hide apps from the grid**: add them to `HIDDEN_PACKAGES`. Play Store and Settings are always hidden; they have their own pills.
+- **Wallpaper**: put an image in `app/src/main/res/drawable/` (e.g. `wallpaper.jpg`) and set `WALLPAPER_DRAWABLE` to its name without the extension (`wallpaper`). Leave it empty for pitch black. A dark gradient is drawn over it so the text stays readable.
+
+## Home Assistant
+
+Set `HASS_URL` and a long-lived access token in `HASS_TOKEN` (HA profile → Security). Without both, nothing below is shown.
+
+- **Glance line** under the date: `HASS_WEATHER` (temperature and condition), `HASS_AQI` (amber above 100, red above 150), and `HASS_INSIDE_TEMPERATURE` / `HASS_INSIDE_HUMIDITY`.
+- **Lights pill**: `HASS_LIGHT`, any light or switch. OK turns it on or off.
+- **AC pill**: `HASS_CLIMATE`. OK opens a panel: Up/Down pick Power, Temperature or Fan; OK toggles power; Left/Right change temperature (`HASS_CLIMATE_MIN_TEMP` to `HASS_CLIMATE_MAX_TEMP`) and fan speed. Changes are sent 500 ms after the last press. Back closes it.
+
+Leave any entity empty to hide that part; an unavailable entity shows `–`. States are fetched when the home screen appears and after each action, never in the background. If Home Assistant can't be reached, the last values stay on screen, dimmed.
 
 ## Navigation
 
