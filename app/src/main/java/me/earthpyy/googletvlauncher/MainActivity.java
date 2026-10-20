@@ -92,9 +92,12 @@ public class MainActivity extends Activity {
 
     private WallpaperFeeds feeds;
     private WallpaperPicker wallpaperPicker;
-    private ImageView wallpaperView;
-    private ImageView previousWallpaperView;
+    // Front: the current wallpaper. Back: the one it's fading in over
+    private View wallpaperLayer;
+    private ImageView wallpaperImage;
     private View wallpaperScrim;
+    private ImageView previousWallpaperImage;
+    private View previousWallpaperScrim;
     private TextView wallpaperCaption;
     private ImageView wallpaperPill;
     // What's behind the home screen: the saved choice, or the one being previewed in the picker
@@ -224,12 +227,16 @@ public class MainActivity extends Activity {
         settingsPill = findViewById(R.id.pill_settings);
         wallpaperPill = findViewById(R.id.pill_wallpaper);
         dockBand = findViewById(R.id.dock_band);
-        wallpaperView = findViewById(R.id.wallpaper);
-        previousWallpaperView = findViewById(R.id.wallpaper_previous);
-        wallpaperView.setImageDrawable(Wallpaper.BLACK.drawable());
+        wallpaperLayer = findViewById(R.id.wallpaper);
+        wallpaperImage = findViewById(R.id.wallpaper_image);
+        wallpaperImage.setImageDrawable(Wallpaper.BLACK.drawable());
         wallpaperScrim = findViewById(R.id.wallpaper_scrim);
-        wallpaperScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0xB3000000, 0x40000000, 0xE6000000}));
+        previousWallpaperImage = findViewById(R.id.wallpaper_previous_image);
+        previousWallpaperScrim = findViewById(R.id.wallpaper_previous_scrim);
+        for (View scrim : new View[]{wallpaperScrim, previousWallpaperScrim}) {
+            scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{0xB3000000, 0x40000000, 0xE6000000}));
+        }
         wallpaperCaption = findViewById(R.id.wallpaper_caption);
         wallpaperCaption.setTypeface(Fonts.outfit(this, 400));
         dockRow = findViewById(R.id.dock_row);
@@ -916,18 +923,19 @@ public class MainActivity extends Activity {
         shownImage = image;
 
         // The new one fades in over whatever is showing now, mid-fade included
-        wallpaperView.animate().cancel();
-        previousWallpaperView.setImageDrawable(wallpaperView.getDrawable());
+        wallpaperLayer.animate().cancel();
+        previousWallpaperImage.setImageDrawable(wallpaperImage.getDrawable());
+        previousWallpaperScrim.setVisibility(wallpaperScrim.getVisibility());
         if (image != null) {
-            wallpaperView.setImageBitmap(image.bitmap);
+            wallpaperImage.setImageBitmap(image.bitmap);
         } else {
-            wallpaperView.setImageDrawable(wallpaper.isFeed() ? Wallpaper.BLACK.drawable() : wallpaper.drawable());
+            wallpaperImage.setImageDrawable(wallpaper.isFeed() ? Wallpaper.BLACK.drawable() : wallpaper.drawable());
         }
-        wallpaperView.setAlpha(0f);
-        wallpaperView.animate().alpha(1f).setDuration(WALLPAPER_FADE_MS)
-                .withEndAction(() -> previousWallpaperView.setImageDrawable(null)).start();
         // Photos need the scrim to keep text readable; the gradients are dark already
-        wallpaperScrim.animate().alpha(image != null ? 1f : 0f).setDuration(WALLPAPER_FADE_MS).start();
+        wallpaperScrim.setVisibility(image != null ? View.VISIBLE : View.GONE);
+        wallpaperLayer.setAlpha(0f);
+        wallpaperLayer.animate().alpha(1f).setDuration(WALLPAPER_FADE_MS)
+                .withEndAction(() -> previousWallpaperImage.setImageDrawable(null)).start();
         wallpaperCaption.setText(image != null ? image.caption : "");
         updateWallpaperCaption();
     }

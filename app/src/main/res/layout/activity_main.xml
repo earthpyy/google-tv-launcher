@@ -9,25 +9,44 @@
     android:focusableInTouchMode="true">
 
     <!-- The outgoing wallpaper, held under the new one while it fades in -->
-    <ImageView
+    <FrameLayout
         android:id="@+id/wallpaper_previous"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:importantForAccessibility="no"
-        android:scaleType="centerCrop" />
+        android:layout_height="match_parent">
 
-    <ImageView
+        <ImageView
+            android:id="@+id/wallpaper_previous_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+
+        <View
+            android:id="@+id/wallpaper_previous_scrim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <!-- A picture and its scrim fade as one, so the scrim never lags behind -->
+    <FrameLayout
         android:id="@+id/wallpaper"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:importantForAccessibility="no"
-        android:scaleType="centerCrop" />
+        android:layout_height="match_parent">
 
-    <View
-        android:id="@+id/wallpaper_scrim"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:alpha="0" />
+        <ImageView
+            android:id="@+id/wallpaper_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+
+        <View
+            android:id="@+id/wallpaper_scrim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <!-- Scrolls as a whole: home screen on top, app grid below it -->
     <FrameLayout
