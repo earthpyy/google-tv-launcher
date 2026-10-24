@@ -81,7 +81,9 @@ final class FootballPeek {
     private final Runnable onClose;
     private final LinearLayout panel;
     private final TextView title;
-    private final TextView hint;
+    private final View hint;
+    private final TextView hintKey;
+    private final TextView hintLabel;
     private final LinearLayout rowsView;
     private final Typeface light;
     private final Typeface regular;
@@ -119,12 +121,15 @@ final class FootballPeek {
         panel = activity.findViewById(R.id.football_panel);
         title = activity.findViewById(R.id.football_panel_title);
         hint = activity.findViewById(R.id.football_panel_hint);
+        hintKey = activity.findViewById(R.id.football_panel_hint_key);
+        hintLabel = activity.findViewById(R.id.football_panel_hint_label);
         rowsView = activity.findViewById(R.id.football_panel_rows);
         light = Fonts.outfit(activity, 300);
         regular = Fonts.outfit(activity, 400);
         medium = Fonts.outfit(activity, 500);
         title.setTypeface(medium);
-        hint.setTypeface(regular);
+        hintKey.setTypeface(medium);
+        hintLabel.setTypeface(regular);
         density = activity.getResources().getDisplayMetrics().density;
     }
 
@@ -327,7 +332,7 @@ final class FootballPeek {
     /** The overall ({@code TOTAL}) table; the home and away ones are skipped. */
     private static Table parseTable(JSONObject json) {
         JSONObject competition = json.optJSONObject("competition");
-        String name = competition == null ? "" : competition.optString("name");
+        String name = FootballLine.competitionName(competition);
         List<Standing> rows = new ArrayList<>();
         JSONArray standings = json.optJSONArray("standings");
         for (int i = 0; standings != null && i < standings.length(); i++) {
@@ -360,11 +365,11 @@ final class FootballPeek {
     }
 
     private void renderFixtures() {
-        title.setText(activity.getString(R.string.football_panel_title, teamName, activity.getString(R.string.football_fixtures)));
+        title.setText(teamName + FootballLine.SEPARATOR + activity.getString(R.string.football_fixtures));
         if (noTableMessage) {
-            setHint(activity.getString(R.string.football_no_table), TEXT_DIM);
+            setHint(activity.getString(R.string.football_no_table), TEXT_DIM, false);
         } else if (hasTable()) {
-            setHint(activity.getString(R.string.football_hint_table), TEXT_SOFT);
+            setHint(activity.getString(R.string.football_table), TEXT_SOFT, true);
         } else {
             hint.setVisibility(View.GONE);
         }
@@ -391,9 +396,8 @@ final class FootballPeek {
     private void renderTable() {
         Table table = table();
         String competition = table == null ? null : table.competition;
-        title.setText(TextUtils.isEmpty(competition) ? teamName
-                : activity.getString(R.string.football_panel_title, teamName, competition));
-        setHint(activity.getString(R.string.football_hint_fixtures), TEXT_SOFT);
+        title.setText(TextUtils.isEmpty(competition) ? teamName : teamName + FootballLine.SEPARATOR + competition);
+        setHint(activity.getString(R.string.football_fixtures), TEXT_SOFT, true);
         if (table == null || table.rows.isEmpty()) {
             LinearLayout row = row(false);
             row.addView(cell(activity.getString(loading ? R.string.football_loading : R.string.football_table_failed),
@@ -427,9 +431,11 @@ final class FootballPeek {
         }
     }
 
-    private void setHint(String text, int colour) {
-        hint.setText(text);
-        hint.setTextColor(colour);
+    /** {@code withKey} puts an OK keycap before the text: what OK does. */
+    private void setHint(String text, int colour, boolean withKey) {
+        hintKey.setVisibility(withKey ? View.VISIBLE : View.GONE);
+        hintLabel.setText(text);
+        hintLabel.setTextColor(colour);
         hint.setVisibility(View.VISIBLE);
     }
 

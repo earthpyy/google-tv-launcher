@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -52,7 +53,19 @@ final class FootballLine {
     private static final float DIMMED = 0.5f;
     private static final String DASH = "–";
     // As wide as the glance line's
-    private static final String SEPARATOR = "   ·   ";
+    static final String SEPARATOR = "   ·   ";
+    // Shorter names for competitions whose full one crowds the line, by football-data.org code
+    private static final Map<String, String> SHORT_COMPETITIONS = new HashMap<>();
+
+    static {
+        SHORT_COMPETITIONS.put("CL", "UCL");
+        SHORT_COMPETITIONS.put("EL", "UEL");
+        SHORT_COMPETITIONS.put("ECL", "UECL");
+        SHORT_COMPETITIONS.put("PD", "La Liga");
+        SHORT_COMPETITIONS.put("BSA", "Brasileirão");
+        SHORT_COMPETITIONS.put("CLI", "Libertadores");
+        SHORT_COMPETITIONS.put("EC", "Euro");
+    }
 
     /** One match, as much of it as the line and the peek need. */
     static final class Match {
@@ -80,7 +93,7 @@ final class FootballLine {
             homeScore = goals(fullTime, "home");
             awayScore = goals(fullTime, "away");
             JSONObject competition = json.optJSONObject("competition");
-            this.competition = competition == null ? "" : competition.optString("name");
+            this.competition = competitionName(competition);
         }
 
         boolean isLive() {
@@ -365,6 +378,15 @@ final class FootballLine {
         line.setText(text);
         line.setAlpha(stale ? DIMMED : 1f);
         line.setVisibility(View.VISIBLE);
+    }
+
+    /** The competition's short name if it has one, else its full name; "" for none. */
+    static String competitionName(JSONObject competition) {
+        if (competition == null) {
+            return "";
+        }
+        String name = SHORT_COMPETITIONS.get(competition.optString("code"));
+        return name != null ? name : competition.optString("name");
     }
 
     /** "in 45 min", "Today 22:30", "Tomorrow 22:30", "Sat 22:30" within the week, else "2 Nov 22:30". */

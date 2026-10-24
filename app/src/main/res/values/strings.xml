@@ -19,10 +19,9 @@
     <string name="football_today">Today</string>
     <string name="football_tomorrow">Tomorrow</string>
     <string name="football_in_minutes">in %1$d min</string>
-    <string name="football_panel_title">%1$s  ·  %2$s</string>
     <string name="football_fixtures">Fixtures</string>
-    <string name="football_hint_table">OK  Table</string>
-    <string name="football_hint_fixtures">OK  Fixtures</string>
+    <string name="football_table">Table</string>
+    <string name="football_ok">OK</string>
     <string name="football_no_table">No table for this league</string>
     <string name="football_loading">Loading…</string>
     <string name="football_table_failed">Couldn\'t load table</string>
