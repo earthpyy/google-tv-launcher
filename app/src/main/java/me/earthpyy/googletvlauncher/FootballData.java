@@ -45,6 +45,24 @@ final class FootballData {
         }
     }
 
+    /** The team, with the competitions it is playing in this season ({@code runningCompetitions}). */
+    JSONObject team(String teamId) throws IOException {
+        try {
+            return new JSONObject(request("/teams/" + URLEncoder.encode(teamId, StandardCharsets.UTF_8.name())));
+        } catch (JSONException e) {
+            throw new IOException(e);
+        }
+    }
+
+    /** The competition's current standings, by its code (e.g. "PL"). */
+    JSONObject standings(String code) throws IOException {
+        try {
+            return new JSONObject(request("/competitions/" + URLEncoder.encode(code, StandardCharsets.UTF_8.name()) + "/standings"));
+        } catch (JSONException e) {
+            throw new IOException(e);
+        }
+    }
+
     private String request(String path) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) new URL(BASE_URL + path).openConnection();
         try {

@@ -52,6 +52,8 @@ public class MainActivity extends Activity {
     // The hidden apps toggle under the grid, and the hidden apps grid under that
     private static final int ZONE_HIDDEN_TOGGLE = 3;
     private static final int ZONE_HIDDEN = 4;
+    // The football line, left of the first pill
+    private static final int ZONE_FOOTBALL = 5;
     private static final int COLUMNS = 4;
     private static final long WALLPAPER_FADE_MS = 400;
 
@@ -265,7 +267,13 @@ public class MainActivity extends Activity {
 
         // Home Assistant pills come first, when configured
         home = new HomeControls(this, loader, mainHandler, this::highlight);
-        football = new FootballLine(this, footballLoader, mainHandler);
+        football = new FootballLine(this, footballLoader, mainHandler, this::onFootballHidden, this::refocus);
+        // The glass follows the line as its text changes
+        football.view().addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (zone == ZONE_FOOTBALL) {
+                refocus();
+            }
+        });
         football.setTeams(profiles.get(activeProfile).footballTeamIds);
         menu = new TileMenu(this, this::highlight, this::refocus);
         if (home.hasLight()) {
@@ -433,6 +441,10 @@ public class MainActivity extends Activity {
             home.onPanelKey(code, event.getRepeatCount());
             return true;
         }
+        if (football.isPeekOpen()) {
+            football.onPeekKey(code, event.getRepeatCount());
+            return true;
+        }
         if (menu.isOpen()) {
             menu.onKey(code, event.getRepeatCount());
             return true;
@@ -522,7 +534,16 @@ public class MainActivity extends Activity {
     private void moveHorizontal(int delta) {
         switch (zone) {
             case ZONE_TOP:
-                setFocus(ZONE_TOP, clamp(topIndex + delta, 0, pills.size() - 1), false);
+                if (delta < 0 && topIndex == 0 && football.isShown()) {
+                    setFocus(ZONE_FOOTBALL, 0, false);
+                } else {
+                    setFocus(ZONE_TOP, clamp(topIndex + delta, 0, pills.size() - 1), false);
+                }
+                break;
+            case ZONE_FOOTBALL:
+                if (delta > 0) {
+                    setFocus(ZONE_TOP, 0, false);
+                }
                 break;
             case ZONE_DOCK:
                 setFocus(ZONE_DOCK, clamp(dockIndex + delta, 0, dockApps.size() - 1), false);
@@ -547,6 +568,7 @@ public class MainActivity extends Activity {
     private void moveVertical(int delta) {
         switch (zone) {
             case ZONE_TOP:
+            case ZONE_FOOTBALL:
                 if (delta > 0) {
                     if (!dockApps.isEmpty()) {
                         setFocus(ZONE_DOCK, dockIndex, false);
@@ -640,6 +662,17 @@ public class MainActivity extends Activity {
             case ZONE_HIDDEN:
                 launch(hiddenApps.get(hiddenIndex));
                 break;
+            case ZONE_FOOTBALL:
+                football.openPeek();
+                refocus();
+                break;
+        }
+    }
+
+    /** The line went away with focus on it: the first pill takes over. */
+    private void onFootballHidden() {
+        if (zone == ZONE_FOOTBALL) {
+            setFocus(ZONE_TOP, 0, false);
         }
     }
 
@@ -699,7 +732,11 @@ public class MainActivity extends Activity {
             updateGlow(immediate);
         }
         glass.setLifted(moving);
-        moveGlass(current, immediate);
+        if (zone == ZONE_FOOTBALL) {
+            highlightFootball(immediate);
+        } else {
+            moveGlass(current, immediate);
+        }
         scrollTo(scrollFor(zone), immediate);
     }
 
@@ -758,6 +795,17 @@ public class MainActivity extends Activity {
         float scale = TileHolder.FOCUS_SCALE;
         float pad = getResources().getDisplayMetrics().density * 2;
         moveGlassOver(tile.card, tileWidth * scale + pad, tileHeight * scale + pad, immediate);
+    }
+
+    /** Glass around the football line, with room to breathe; hidden while its peek covers it. */
+    private void highlightFootball(boolean immediate) {
+        if (football.isPeekOpen()) {
+            glass.animate().alpha(0f).setDuration(120).start();
+            return;
+        }
+        View line = football.view();
+        float density = getResources().getDisplayMetrics().density;
+        moveGlassOver(line, line.getWidth() + 28 * density, line.getHeight() + 14 * density, immediate);
     }
 
     /** Glass over any view (an AC panel row), or hidden when {@code view} is null. */
@@ -1024,6 +1072,7 @@ public class MainActivity extends Activity {
             return;
         }
         home.onPause();
+        football.closePeek();
         content.setVisibility(View.INVISIBLE);
         picker.show(activeProfile);
         updateClock();
@@ -1368,10 +1417,11 @@ public class MainActivity extends Activity {
         setFocus(ZONE_DOCK, moveFrom, false);
     }
 
-    /** Closes the tile menu and wallpaper picker, cancels a dock move and forgets a held OK; for Home, standby and leaving. */
+    /** Closes the tile menu, football peek and wallpaper picker, cancels a dock move and forgets a held OK; for Home, standby and leaving. */
     private void dismissEditing() {
         cancelPress();
         menu.close();
+        football.closePeek();
         cancelMove();
         wallpaperPicker.cancel();
     }
@@ -1423,7 +1473,8 @@ public class MainActivity extends Activity {
             return;
         }
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putInt(PREF_ZONE, zone)
+                // The line may be gone by the next start
+                .putInt(PREF_ZONE, zone == ZONE_FOOTBALL ? ZONE_TOP : zone)
                 .putInt(PREF_TOP, topIndex)
                 .putString(PREF_DOCK, packageAt(dockApps, dockIndex))
                 .putString(PREF_GRID, packageAt(gridApps, gridIndex))

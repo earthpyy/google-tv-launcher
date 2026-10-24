@@ -1,6 +1,7 @@
 package me.earthpyy.googletvlauncher;
 
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.text.SpannableStringBuilder;
@@ -22,15 +23,17 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 
 /**
- * The profile's favourite teams on the home screen: one read-only line under the glance line showing the most relevant
- * match of any of them. Fetched on resume and at kick-off; polled every minute only while a match is live and the home
- * screen shows.
+ * The profile's favourite teams on the home screen: one line under the glance line showing the most relevant match of
+ * any of them. OK on it opens {@link FootballPeek} for that match's team. Fetched on resume and at kick-off; polled
+ * every minute only while a match is live and the home screen shows.
  */
 final class FootballLine {
     private static final String TAG = "FootballLine";
@@ -42,27 +45,36 @@ final class FootballLine {
     private static final long FINISHED_SHOWN_MS = 14 * 60 * MINUTE_MS;
     // A match still "scheduled" this long after kick-off is stale data, not about to start
     private static final long SCHEDULED_GRACE_MS = 3 * 60 * MINUTE_MS;
-    private static final int LOOKAHEAD_DAYS = 30;
+    // Far enough for the peek's next five matches across an international break
+    private static final int LOOKAHEAD_DAYS = 60;
+    // The peek's rows: the match on the line and the team's next ones after it
+    private static final int PEEK_MATCHES = 6;
     private static final float DIMMED = 0.5f;
     private static final String DASH = "–";
     // As wide as the glance line's
     private static final String SEPARATOR = "   ·   ";
 
-    /** One match, as much of it as the line needs. */
-    private static final class Match {
+    /** One match, as much of it as the line and the peek need. */
+    static final class Match {
+        // The favourite team it was fetched for
+        final String team;
         final long kickoff;
         final String status;
         final String home;
         final String away;
+        final int homeId;
         final String homeScore;
         final String awayScore;
         final String competition;
 
-        Match(JSONObject json) throws DateTimeParseException {
+        Match(String team, JSONObject json) throws DateTimeParseException {
+            this.team = team;
             kickoff = Instant.parse(json.optString("utcDate")).toEpochMilli();
             status = json.optString("status");
             home = teamName(json.optJSONObject("homeTeam"));
             away = teamName(json.optJSONObject("awayTeam"));
+            JSONObject homeTeam = json.optJSONObject("homeTeam");
+            homeId = homeTeam == null ? -1 : homeTeam.optInt("id", -1);
             JSONObject score = json.optJSONObject("score");
             JSONObject fullTime = score == null ? null : score.optJSONObject("fullTime");
             homeScore = goals(fullTime, "home");
@@ -91,6 +103,11 @@ final class FootballLine {
             return status.equals("SCHEDULED") || status.equals("TIMED");
         }
 
+        /** The favourite team's name, as the match shows it. */
+        String teamName() {
+            return String.valueOf(homeId).equals(team) ? home : away;
+        }
+
         private static String teamName(JSONObject team) {
             if (team == null) {
                 return DASH;
@@ -112,9 +129,13 @@ final class FootballLine {
     private final Handler handler;
     private final FootballData api;
     private final TextView line;
+    private final FootballPeek peek;
+    private final Runnable onHidden;
     private final Runnable poll = this::fetch;
 
     private List<String> teamIds = Collections.emptyList();
+    // Each team's matches from the last good fetch, in the profile's order
+    private Map<String, List<Match>> matchesByTeam = Collections.emptyMap();
     // The match on show, or null to hide the line
     private Match match;
     private boolean stale;
@@ -123,14 +144,59 @@ final class FootballLine {
     private int generation;
     private int fetchingGeneration = -1;
 
-    FootballLine(Activity activity, ExecutorService executor, Handler handler) {
+    /** {@code onHidden} runs when the line goes away, {@code onPeekClosed} when the peek closes. */
+    FootballLine(Activity activity, ExecutorService executor, Handler handler, Runnable onHidden, Runnable onPeekClosed) {
         this.activity = activity;
         this.executor = executor;
         this.handler = handler;
+        this.onHidden = onHidden;
         api = new FootballData(BuildConfig.FOOTBALL_DATA_TOKEN);
         line = activity.findViewById(R.id.football);
         line.setTypeface(Fonts.outfit(activity, 300));
+        peek = new FootballPeek(activity, executor, handler, api, onPeekClosed);
         render();
+    }
+
+    View view() {
+        return line;
+    }
+
+    boolean isShown() {
+        return match != null;
+    }
+
+    // Peek
+
+    /** Opens the peek on the line's team: the match on the line, then that team's next ones. */
+    void openPeek() {
+        if (match == null) {
+            return;
+        }
+        List<Match> fixtures = new ArrayList<>();
+        fixtures.add(match);
+        List<Match> team = new ArrayList<>(matchesByTeam.getOrDefault(match.team, Collections.emptyList()));
+        team.sort((a, b) -> Long.compare(a.kickoff, b.kickoff));
+        for (Match next : team) {
+            if (fixtures.size() >= PEEK_MATCHES) {
+                break;
+            }
+            if (next.isUpcoming() && next.kickoff > match.kickoff) {
+                fixtures.add(next);
+            }
+        }
+        peek.show(match.team, match.teamName(), fixtures, stale, line);
+    }
+
+    boolean isPeekOpen() {
+        return peek.isOpen();
+    }
+
+    void onPeekKey(int code, int repeatCount) {
+        peek.onKey(code, repeatCount);
+    }
+
+    void closePeek() {
+        peek.close();
     }
 
     /** Switches to another profile's teams. The line clears until they are fetched. */
@@ -140,6 +206,7 @@ final class FootballLine {
         }
         teamIds = ids;
         generation++;
+        matchesByTeam = Collections.emptyMap();
         match = null;
         stale = false;
         handler.removeCallbacks(poll);
@@ -185,19 +252,23 @@ final class FootballLine {
         String dateFrom = day.format(new Date(now - 24 * 60 * MINUTE_MS));
         String dateTo = day.format(new Date(now + LOOKAHEAD_DAYS * 24 * 60 * MINUTE_MS));
         executor.execute(() -> {
+            Map<String, List<Match>> byTeam = new LinkedHashMap<>();
             List<Match> matches = new ArrayList<>();
             boolean failed = false;
             for (String id : ids) {
                 try {
                     JSONArray list = api.matches(id, dateFrom, dateTo);
+                    List<Match> team = new ArrayList<>();
+                    byTeam.put(id, team);
                     for (int i = 0; i < list.length(); i++) {
                         JSONObject json = list.optJSONObject(i);
                         try {
-                            matches.add(new Match(json));
+                            team.add(new Match(id, json));
                         } catch (DateTimeParseException ignored) {
                             // No kick-off time, nothing to place it by
                         }
                     }
+                    matches.addAll(team);
                 } catch (FootballData.RejectedException e) {
                     // A wrong team ID or token won't fix itself; skip it rather than dim the line forever
                     Log.w(TAG, "Team " + id + " rejected: " + e.getMessage());
@@ -215,7 +286,13 @@ final class FootballLine {
                     return;
                 }
                 if (ok) {
-                    match = pick(matches, System.currentTimeMillis());
+                    Match picked = pick(matches, System.currentTimeMillis());
+                    // A final whistle moves the table on
+                    if (match != null && match.isLive() && (picked == null || !picked.isLive())) {
+                        peek.expireTables();
+                    }
+                    matchesByTeam = byTeam;
+                    match = picked;
                 }
                 stale = !ok;
                 render();
@@ -226,7 +303,10 @@ final class FootballLine {
         });
     }
 
-    /** A live match first, then a result from the last few hours, then the next kick-off; null if none. */
+    /**
+     * A live match first, then a result from the last few hours, then the next kick-off; null if none. On a tie (a match
+     * between two favourites) the team listed first wins, as its copy comes first.
+     */
     private static Match pick(List<Match> matches, long now) {
         Match live = null;
         Match finished = null;
@@ -258,7 +338,12 @@ final class FootballLine {
 
     private void render() {
         if (match == null) {
+            boolean wasShown = line.getVisibility() == View.VISIBLE;
             line.setVisibility(View.GONE);
+            if (wasShown) {
+                peek.close();
+                onHidden.run();
+            }
             return;
         }
         SpannableStringBuilder text = new SpannableStringBuilder();
@@ -270,7 +355,7 @@ final class FootballLine {
                     .append("–")
                     .append(match.awayScore).append(' ').append(match.away);
         } else {
-            text.append(when(match.kickoff, System.currentTimeMillis()))
+            text.append(when(activity, match.kickoff, System.currentTimeMillis()))
                     .append(SEPARATOR)
                     .append(match.home).append(' ').append(activity.getString(R.string.football_vs)).append(' ').append(match.away);
             if (!match.competition.isEmpty()) {
@@ -283,19 +368,19 @@ final class FootballLine {
     }
 
     /** "in 45 min", "Today 22:30", "Tomorrow 22:30", "Sat 22:30" within the week, else "2 Nov 22:30". */
-    private String when(long kickoff, long now) {
+    static String when(Context context, long kickoff, long now) {
         long until = kickoff - now;
         if (until > 0 && until <= COUNTDOWN_MS) {
-            return activity.getString(R.string.football_in_minutes, (int) Math.max(1, (until + MINUTE_MS - 1) / MINUTE_MS));
+            return context.getString(R.string.football_in_minutes, (int) Math.max(1, (until + MINUTE_MS - 1) / MINUTE_MS));
         }
         Date date = new Date(kickoff);
         String time = TimeText.clock(date);
         int days = daysBetween(now, kickoff);
         if (days <= 0) {
-            return activity.getString(R.string.football_today) + " " + time;
+            return context.getString(R.string.football_today) + " " + time;
         }
         if (days == 1) {
-            return activity.getString(R.string.football_tomorrow) + " " + time;
+            return context.getString(R.string.football_tomorrow) + " " + time;
         }
         SimpleDateFormat format = new SimpleDateFormat(days <= 6 ? "EEE" : "d MMM", Locale.ENGLISH);
         format.setTimeZone(TimeZone.getDefault());
